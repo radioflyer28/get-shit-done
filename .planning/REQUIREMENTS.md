@@ -33,7 +33,7 @@ Requirements for milestone v1.0. Each maps to roadmap phases.
 - [ ] **AUDIT-05**: GSD tool usage audit verifies `Task()` patterns, `AskUserQuestion` gates, `Bash()` safety, file operations, state management, hook integration
 - [ ] **AUDIT-06**: Report generated as `SKILL-AUDIT.md` with verdict (PASS/PASS WITH WARNINGS/FAIL), structural table, SMART scorecard, prompt findings, tool findings, remediation guidance
 - [ ] **AUDIT-07**: `--structural-only` flag runs only deterministic checks (fast, CI-suitable)
-- [ ] **AUDIT-08**: `--all` flag audits every installed skill in batch mode
+- [ ] **AUDIT-08**: `--depth <quick|standard|deep>` controls audit depth (`quick` = deterministic structural checks only, `standard` = current full audit, `deep` = full audit with expanded evidence and stricter warning surfacing)
 - [ ] **AUDIT-09**: `--fix` flag routes findings to `/gsd-tune-skill` for remediation (requires SEED-002)
 - [ ] **AUDIT-10**: `--json` flag outputs findings as structured JSON for programmatic consumption
 
@@ -65,6 +65,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 - **ECO-01**: Skill marketplace or registry for sharing skills
 - **ECO-02**: `--full` flag for scaffolder to generate complete working skills (not just stubs)
 - **ECO-03**: Skill versioning and changelog tracking
+- **ECO-04**: Multi-skill batch auditing mode for quality sweeps and future autonomous tuning pipelines
 
 ## Out of Scope
 
@@ -75,6 +76,7 @@ Deferred to future milestone. Tracked but not in current roadmap.
 | External contributor onboarding | Build-skill handles creation, not contributor docs |
 | Scanner seeds (006-010) | Separate concern, separate milestone |
 | Skill versioning | v1 focuses on quality, not change tracking |
+| Multi-skill batch auditing | Deferred to v2; Phase 3 focuses on single-skill depth semantics |
 
 ## Traceability
 
@@ -121,4 +123,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2025-04-15*
-*Last updated: 2025-04-15 after roadmap creation*
+*Last updated: 2026-04-15 after Phase 3 scope revision*

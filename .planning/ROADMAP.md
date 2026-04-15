@@ -13,7 +13,7 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
 - [x] **Phase 1: Shared Infrastructure** - SMART rubric, convention tests, and authoring guide consumed by all three skills
  (completed 2026-04-15)
 - [x] **Phase 2: Skill Auditor Core** - Single-skill audit with structural, SMART, prompt quality, and tool usage checks
-- [ ] **Phase 3: Auditor Extensions** - Operational flags for CI, batch mode, fix routing, and JSON output
+- [ ] **Phase 3: Auditor Extensions** - Operational flags for CI, depth control, fix routing, and JSON output
 - [ ] **Phase 4: Skill Scaffolder** - Guided skill creation with convention-compliant file generation
 - [ ] **Phase 5: Skill Tuner** - Symptom-driven, human-in-the-loop skill improvement via audit-backed diagnosis
 
@@ -49,13 +49,13 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
 **Plans**: TBD
 
 ### Phase 3: Auditor Extensions
-**Goal**: The auditor supports operational flags for CI integration, batch processing, fix routing, and programmatic output
+**Goal**: The auditor supports operational flags for CI integration, depth control, fix routing, and programmatic output
 **Depends on**: Phase 2
 **Seeds**: SEED-003 (completion)
 **Requirements**: AUDIT-07, AUDIT-08, AUDIT-09, AUDIT-10
 **Success Criteria** (what must be TRUE):
   1. `--structural-only` flag runs only deterministic checks without LLM-dependent scoring, suitable for CI pipelines
-  2. `--all` flag audits every installed skill in batch mode and produces an aggregate summary
+  2. `--depth <quick|standard|deep>` controls audit depth: quick (deterministic structural checks only), standard (full current audit), deep (full audit with expanded evidence and stricter warning surfacing)
   3. `--fix` flag routes audit findings to `/gsd-tune-skill` for remediation (requires Phase 5; graceful error if tuner not available)
   4. `--json` flag outputs structured JSON with all findings for programmatic consumption by other tools
 **Plans**: TBD
@@ -154,4 +154,4 @@ v1.0 is complete when:
 
 ---
 *Roadmap created: 2025-04-15*
-*Last updated: 2025-04-15*
+*Last updated: 2026-04-15 (Phase 3 scope revision)*
