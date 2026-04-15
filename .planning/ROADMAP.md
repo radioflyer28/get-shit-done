@@ -58,7 +58,10 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
   2. `--depth <quick|standard|deep>` controls audit depth: quick (deterministic structural checks only), standard (full current audit), deep (full audit with expanded evidence and stricter warning surfacing)
   3. `--fix` flag routes audit findings to `/gsd-tune-skill` for remediation (requires Phase 5; graceful error if tuner not available)
   4. `--json` flag outputs structured JSON with all findings for programmatic consumption by other tools
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — Extend command + workflow with --structural-only, --depth, --fix, --json flag parsing, routing, and output
+- [ ] 03-02-PLAN.md — Extend gsd-skill-auditor agent with depth-conditional execution (quick/standard/deep modes)
 
 ### Phase 4: Skill Scaffolder
 **Goal**: Users can create new skills through a guided workflow that produces structurally correct, convention-compliant file scaffolds
