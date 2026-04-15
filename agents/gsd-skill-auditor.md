@@ -45,11 +45,20 @@ Provided by the /gsd-audit-skill workflow inside an <audit_context> block:
                     or "UNRESOLVABLE:{path}" if the file was not found by the workflow,
                     or empty string if no execution_context @-ref was present in SKILL.md
 - output_path     — where to write SKILL-AUDIT.md
+- depth           — audit depth: "quick" | "standard" | "deep"
+                    Default: "standard" if absent or not provided by workflow.
+                    quick = structural checks only (SMART/prompt/tool skipped).
+                    standard = all 4 check types (current full audit).
+                    deep = all 4 check types with expanded evidence and stricter thresholds.
 </input>
 
 <execution_flow>
 
 <step name="read_skill_files">
+Extract DEPTH from the `<audit_context>` block. If absent or not provided, set DEPTH = "standard".
+Validate: if DEPTH is not one of "quick", "standard", "deep", set DEPTH = "standard" and
+note the fallback in the structural findings section (T-03-05).
+
 Read skill_md_path using the Read tool. Store as SKILL_MD_CONTENT.
 
 If workflow_path is non-empty and does NOT start with "UNRESOLVABLE:":
@@ -112,6 +121,12 @@ Count all FAIL results as structural_fail_count. SKIP results do not count towar
 </step>
 
 <step name="smart_scoring">
+**If DEPTH = "quick":**
+Skip all SMART scoring. Set smart_avg = null, smart_worst = null.
+Add a note to the scorecard section of the report: "SMART scoring skipped — quick mode runs
+structural checks only."
+Proceed directly to write_report (skip prompt_quality and tool_usage steps).
+
 For each of the 5 SMART dimensions (S=Specific, M=Measurable, A=Achievable, R=Relevant,
 T=Time-bound) as defined in skill-smart-criteria.md:
 
@@ -125,9 +140,20 @@ T=Time-bound) as defined in skill-smart-criteria.md:
 After scoring all 5 dimensions:
 - Compute smart_avg = (sum of 5 scores) / 5 (round to one decimal place)
 - Identify smart_worst = minimum score across all 5 dimensions
+
+**If DEPTH = "deep" (additional evidence collection):**
+For each SMART dimension:
+- Quote 2–3 evidence excerpts from the skill files (not just the primary excerpt).
+  Prefer excerpts from different sections (e.g., one from SKILL.md, one from workflow step).
+- Apply a stricter borderline threshold: if a dimension score is 3, add a "borderline warning"
+  annotation alongside the finding text:
+  "Score 3 — borderline; consider strengthening for a more robust skill."
+- Collect borderline_warnings list (dimensions that scored exactly 3).
 </step>
 
 <step name="prompt_quality">
+**If DEPTH = "quick":** Skip all prompt quality evaluation. Set high_prompt_count = 0.
+
 Evaluate SKILL_MD_CONTENT and WORKFLOW_CONTENT against 6 criteria. For each finding, record
 {criterion, severity: HIGH|MEDIUM|LOW, description, affected_section, suggested_fix}. Only
 record a finding when an issue is found (no finding = no row in the table).
@@ -161,9 +187,19 @@ record a finding when an issue is found (no finding = no row in the table).
       equivalent) AND writes/creates a file → HIGH severity
 
 Count HIGH-severity findings as high_prompt_count.
+
+**If DEPTH = "deep" (stricter escalation):**
+Apply the following escalation on top of standard severity rules:
+- MEDIUM findings that affect more than 1 workflow step are escalated to HIGH.
+- Include a step-level word count annotation for every step in the workflow file
+  (not only those exceeding 200 words). Format: "Step '{name}': {N} words."
+  Steps over 200 words are flagged HIGH per the standard rule; steps 150–200 words are
+  flagged MEDIUM; steps under 150 words receive no severity annotation.
 </step>
 
 <step name="tool_usage">
+**If DEPTH = "quick":** Skip all tool usage evaluation.
+
 If WORKFLOW_LOADED=false, record all 6 patterns as SKIP with note "Workflow file not loaded".
 
 If WORKFLOW_LOADED=true, evaluate WORKFLOW_CONTENT against 6 patterns. For each finding,
@@ -198,6 +234,13 @@ record {pattern, severity: HIGH|MEDIUM|LOW, description, file_ref, suggested_fix
 </step>
 
 <step name="compute_verdict">
+**If DEPTH = "quick":**
+Verdict is based solely on structural_fail_count:
+- PASS if structural_fail_count = 0
+- FAIL if structural_fail_count > 0
+(No PASS WITH WARNINGS in quick mode — CI pipelines need a clear binary signal.)
+Set VERDICT and proceed directly to write_report.
+
 Apply verdict thresholds (from D-03 design decision):
 
 **FAIL** if ANY of the following:
@@ -214,10 +257,29 @@ Apply verdict thresholds (from D-03 design decision):
 - high_prompt_count == 0
 
 Set VERDICT to exactly one of: "PASS", "PASS WITH WARNINGS", "FAIL"
+
+**If DEPTH = "deep" (stricter threshold):**
+Apply the standard FAIL conditions unchanged. For PASS WITH WARNINGS, use smart_avg < 3.8
+(stricter than standard's 3.5). Additionally, if borderline_warnings is non-empty (any
+dimension scored exactly 3), add a borderline warning note to the report scorecard even if
+VERDICT = "PASS".
 </step>
 
 <step name="write_report">
 Write SKILL-AUDIT.md to output_path using the Write tool (never heredoc). File structure:
+
+**If DEPTH = "quick":**
+Write a condensed scorecard table with only the structural integrity row:
+
+| Area | Score | Result | Summary |
+|------|-------|--------|---------|
+| Structural Integrity | {N checks, M failed} | {PASS or FAIL} | {one-line summary} |
+
+Omit all SMART dimension rows, Prompt Quality row, and Tool Usage row.
+Omit "SMART Average" and "Worst Dimension" lines.
+Add below the table: "Quick mode: SMART scoring, prompt quality, and tool usage checks skipped."
+
+**If DEPTH = "standard" or "deep":** Use the full 8-row scorecard as currently defined.
 
 ---
 ```markdown
