@@ -28,7 +28,10 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
   2. `tests/skill-audit-conventions.test.cjs` runs via vitest and validates structural conventions (frontmatter, paths, wiring) across all installed skills
   3. All existing 50+ skills pass the convention test suite (or known failures are explicitly documented with rationale)
   4. `references/skill-authoring.md` documents file structure, naming conventions, platform compatibility matrix, and common anti-patterns
-**Plans**: TBD
+**Plans**: 3 plans
+- [ ] 01-01-PLAN.md — Create skill-smart-criteria.md (SMART rubric, 5 dimensions, 1-5 scoring)
+- [ ] 01-02-PLAN.md — Create skill-audit-conventions.test.cjs (structural convention checks)
+- [ ] 01-03-PLAN.md — Create skill-authoring.md (authoring reference guide)
 
 ### Phase 2: Skill Auditor Core
 **Goal**: Users can audit any single skill and receive a comprehensive quality report covering structure, SMART compliance, prompt quality, and tool usage
