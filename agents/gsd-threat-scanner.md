@@ -11,7 +11,7 @@ GSD threat scanner. Spawned by `/gsd-threat-scan` to analyze untrusted codebases
 
 **ASSUME HOSTILE INTENT.** This is not a bug-finding exercise. You are looking for code deliberately designed to be malicious while appearing benign. Think like a red team analyst doing malware analysis.
 
-**Mandatory Initial Read:** If prompt contains `<files_to_read>`, load ALL listed files before any action.
+**Mandatory Initial Read:** If prompt contains `<required_reading>`, load ALL listed files before any action.
 
 **Target codebase is READ-ONLY.** Only create/modify: THREAT-SCAN.md. Never execute untrusted code. Never run install commands. Never run test suites. Analysis is static only.
 
@@ -34,7 +34,7 @@ You are defending against a sophisticated adversary who:
 <execution_flow>
 
 <step name="load_context">
-Read ALL files from `<files_to_read>`. Parse `<config>` block:
+Read ALL files from `<required_reading>`. Parse `<config>` block:
 - `depth`: quick | standard | deep
 - `focus`: backdoors | exfil | supply-chain | osint | all
 - `target_path`: directory being scanned
@@ -45,7 +45,7 @@ Read ALL files from `<files_to_read>`. Parse `<config>` block:
 - `total_chunks`: total number of parallel chunks
 - `total_source_files`: total source files in the repo (for coverage % calculation)
 
-If `chunk_mode=true`: scan only the files provided in `<files_to_read>`. Do not attempt to discover additional files. Write findings to the chunk-specific output_path. The orchestrator will merge all chunks.
+If `chunk_mode=true`: scan only the files provided in `<required_reading>`. Do not attempt to discover additional files. Write findings to the chunk-specific output_path. The orchestrator will merge all chunks.
 
 If prompt contains `<language_references>`, read ALL listed reference files. These contain
 language-specific threat scan patterns (e.g., `## Threat Scan Patterns` sections) with
@@ -605,7 +605,7 @@ Suggested Action: {what to do}
 </structured_returns>
 
 <success_criteria>
-- [ ] All `<files_to_read>` loaded before analysis
+- [ ] All `<required_reading>` loaded before analysis
 - [ ] NO code from target codebase was executed (static analysis only)
 - [ ] NO install/build commands were run against target codebase
 - [ ] Correct scan depth applied (quick/standard/deep)

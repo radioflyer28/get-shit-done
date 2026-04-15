@@ -331,7 +331,7 @@ Otherwise, use single-agent dispatch.
 ```
 Task(
   prompt="Read .github/agents/gsd-security-scanner.agent.md for instructions.\n\n" +
-    "<files_to_read>\n${FILES_TO_SCAN}</files_to_read>\n" +
+    "<required_reading>\n${FILES_TO_SCAN}</required_reading>\n" +
     "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
     "${MAPPER_CONTEXT}" +
     "<config>\n" +
@@ -372,7 +372,7 @@ Spawn in parallel:
 # Agent 1: Dependencies + Config (small file set, fast)
 Task(
   prompt="Read .github/agents/gsd-security-scanner.agent.md for instructions.\n\n" +
-    "<files_to_read>\n${DEPS_FILES}\n${CONFIG_FILES}</files_to_read>\n" +
+    "<required_reading>\n${DEPS_FILES}\n${CONFIG_FILES}</required_reading>\n" +
     "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
     "${MAPPER_CONTEXT}" +
     "<config>\n" +
@@ -395,7 +395,7 @@ Task(
 for i in 1..N:
   Task(
     prompt="Read .github/agents/gsd-security-scanner.agent.md for instructions.\n\n" +
-      "<files_to_read>\n${SOURCE_CHUNK_i}</files_to_read>\n" +
+      "<required_reading>\n${SOURCE_CHUNK_i}</required_reading>\n" +
       "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
       "${MAPPER_CONTEXT}" +
       "<config>\n" +

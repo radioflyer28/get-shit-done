@@ -307,7 +307,7 @@ Otherwise, use single-agent dispatch.
 ```
 Task(
   prompt="Read .github/agents/gsd-threat-scanner.agent.md for instructions.\n\n" +
-    "<files_to_read>\n${FILES_TO_SCAN}</files_to_read>\n" +
+    "<required_reading>\n${FILES_TO_SCAN}</required_reading>\n" +
     "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
     "${MAPPER_CONTEXT}" +
     "<config>\n" +
@@ -348,7 +348,7 @@ Spawn in parallel:
 for i in 1..N:
   Task(
     prompt="Read .github/agents/gsd-threat-scanner.agent.md for instructions.\n\n" +
-      "<files_to_read>\n${COMMON_FILES}\n${SOURCE_CHUNK_i}</files_to_read>\n" +
+      "<required_reading>\n${COMMON_FILES}\n${SOURCE_CHUNK_i}</required_reading>\n" +
       "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
       "${MAPPER_CONTEXT}" +
       "<config>\n" +

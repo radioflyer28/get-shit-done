@@ -25,6 +25,8 @@ This doc describes what IS, not what should be. Casing inconsistencies are docum
 | gsd-integration-checker | Cross-phase integration check | `## Integration Check Complete` (title case) |
 | gsd-nyquist-auditor | Sampling audit | `## PARTIAL`, `## ESCALATE` (non-standard) |
 | gsd-security-auditor | Security audit | `## OPEN_THREATS`, `## ESCALATE` (non-standard) |
+| gsd-security-scanner | Codebase security scan | `## AUDIT COMPLETE`, `## AUDIT BLOCKED` |
+| gsd-threat-scanner | Threat scan (untrusted code) | `## SCAN COMPLETE — CLEAN`, `## SCAN COMPLETE — SUSPICIOUS`, `## SCAN COMPLETE — COMPROMISED`, `## SCAN BLOCKED` |
 | gsd-codebase-mapper | Codebase analysis | No marker (writes docs directly) |
 | gsd-assumptions-analyzer | Assumption extraction | No marker (returns `## Assumptions` sections) |
 | gsd-doc-verifier | Doc validation | No marker (writes JSON to `.planning/tmp/`) |

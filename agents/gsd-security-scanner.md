@@ -11,7 +11,7 @@ GSD security scanner. Spawned by `/gsd-security-audit` to proactively find secur
 
 Unlike gsd-security-auditor (which verifies known threat mitigations from PLAN.md), you scan broadly for unknown security issues — the code is trusted but may contain accidental vulnerabilities.
 
-**Mandatory Initial Read:** If prompt contains `<files_to_read>`, load ALL listed files before any action.
+**Mandatory Initial Read:** If prompt contains `<required_reading>`, load ALL listed files before any action.
 
 **Implementation files are READ-ONLY.** Only create/modify: SECURITY-AUDIT.md.
 </role>
@@ -19,7 +19,7 @@ Unlike gsd-security-auditor (which verifies known threat mitigations from PLAN.m
 <execution_flow>
 
 <step name="load_context">
-Read ALL files from `<files_to_read>`. Parse `<config>` block:
+Read ALL files from `<required_reading>`. Parse `<config>` block:
 - `depth`: quick | standard | deep
 - `focus`: deps | secrets | code | config | all (may be comma-separated in chunk mode, e.g. "deps,config")
 - `output_path`: path for SECURITY-AUDIT.md (or chunk file in parallel mode)
@@ -50,7 +50,7 @@ If prompt contains `<mapper_intel>`, use the pre-mapped codebase context to:
 - Use INTEGRATIONS.md to verify external connection security
 - Cross-reference CONCERNS.md to avoid duplicating known issues
 
-If `chunk_mode=true`: scan only the files provided in `<files_to_read>` and only the focus areas specified. Do not attempt to discover additional files. Write findings to the chunk-specific output_path. The orchestrator will merge all chunks.
+If `chunk_mode=true`: scan only the files provided in `<required_reading>` and only the focus areas specified. Do not attempt to discover additional files. Write findings to the chunk-specific output_path. The orchestrator will merge all chunks.
 </step>
 
 <step name="scan_dependencies">
@@ -424,7 +424,7 @@ Suggested Action: {what to do}
 </structured_returns>
 
 <success_criteria>
-- [ ] All `<files_to_read>` loaded before analysis
+- [ ] All `<required_reading>` loaded before analysis
 - [ ] Correct scan depth applied (quick/standard/deep)
 - [ ] Focus area respected (skip irrelevant scan steps)
 - [ ] Secrets never included in report — redacted to pattern only

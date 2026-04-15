@@ -25,6 +25,8 @@ const MODEL_PROFILES = {
   'gsd-ui-auditor': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
   'gsd-doc-writer': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
   'gsd-doc-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
+  'gsd-security-scanner': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'sonnet' },
+  'gsd-threat-scanner': { quality: 'opus', balanced: 'opus', budget: 'sonnet', adaptive: 'opus' },
 };
 const VALID_PROFILES = Object.keys(MODEL_PROFILES['gsd-planner']);
 
