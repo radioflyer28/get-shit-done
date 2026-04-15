@@ -115,6 +115,86 @@ Related code and decisions found in the current codebase:
 - `get-shit-done/workflows/` — all workflows that would be observed and potentially auto-improved
 - `get-shit-done/bin/gsd-tools.cjs` — `skill-metrics` subcommands would be added here
 
+## Scoping Decisions (Open Questions)
+
+The most important architectural decision for this seed: **at what granularity does the loop operate?**
+
+Two fundamentally different scopes are possible, and they have different targets, metrics, and risk profiles:
+
+---
+
+### Option A: Milestone-Level Loop (Macro)
+
+**Target:** Was the milestone executed well overall? Did the plan reflect the requirements? Did
+the execution follow the plan? Were phase goals achieved?
+
+**What it observes:**
+- VERIFICATION.md outcomes vs PLAN.md goals
+- Deviation reports from `gsd-executor` (steps skipped, unexpected branches taken)
+- Milestone audit results from `/gsd-audit-milestone`
+- Cross-phase integration failures from `/gsd-integration-checker`
+
+**What it would auto-improve:**
+- `new-project.md` workflow — if projects consistently have poor phase breakdowns
+- `plan-phase.md` workflow — if plans consistently miss scope or misestimate effort
+- `roadmapper.md` agent — if roadmaps consistently need heavy revision mid-milestone
+
+**Metric analog:** milestone completion rate, plan accuracy (planned vs actual phases needed),
+requirement coverage (were all requirements addressed without gaps or rework?)
+
+**Risk:** Changes to milestone-level workflows are high-blast-radius — a bad edit to
+`new-project.md` could affect every new project. Auto-apply threshold should be very high (≥0.92)
+or disabled entirely for this scope. Human-gate is likely mandatory.
+
+---
+
+### Option B: Granular Skill Loop (Micro)
+
+**Target:** Did individual skills perform well at their specific job? Did `gsd-planner` produce
+executable plans? Did `gsd-executor` follow them without retries? Did `gsd-verifier` catch real gaps?
+
+**What it observes:**
+- Per-skill friction events: retries, corrections, deviations per agent/workflow step
+- Step-level signal: which specific instruction in `workflow.md` caused friction
+- Agent output quality signals: plan checker rejection rate, executor deviation frequency
+
+**What it would auto-improve:**
+- Individual workflow steps (single instruction blocks, not whole workflows)
+- Agent prompt sections (specific reasoning steps, not full agent files)
+- Tool permission lists (add missing tool, remove unused tool)
+
+**Metric analog:** step completion rate, correction frequency per step, retry rate per agent
+
+**Risk:** Lower blast radius — a bad edit to one step in `gsd-planner`'s instructions affects
+only plans, not all of GSD. More compatible with auto-apply.
+
+---
+
+### Recommended Framing
+
+These are not mutually exclusive — they're two loops at different timescales:
+
+| Dimension | Granular Loop (Micro) | Milestone Loop (Macro) |
+|---|---|---|
+| Signal unit | Session friction event | Milestone outcome |
+| Improvement target | Individual skill steps | Cross-cutting workflow patterns |
+| Observation window | 10 sessions | 3–5 milestones |
+| Auto-apply safe? | Yes, at ≥0.85 confidence | No — human-gate always |
+| Implements first? | **Yes — Phase A/B/C** | Later — Phase E (future seed?) |
+| Karpathy analog | Modifying `train.py` functions | Modifying the training curriculum |
+
+**Recommended decision:** Implement the granular (micro) loop first — it's safer, faster to get
+signal, and more directly useful. The milestone-level loop is a natural Phase E once the micro
+loop proves out the infrastructure and the `skill-improvement-program.md` concept. The milestone
+loop may warrant its own seed (SEED-008b or a future dedicated seed) given its distinct risk
+profile and trigger conditions (needs multi-milestone history, not just session transcripts).
+
+This scoping decision should be revisited when planning the milestone that picks up this seed —
+the right answer may depend on how much session data exists and whether the micro loop has
+already been validated.
+
+---
+
 ## Notes
 
 The Karpathy autoresearch analogy is precise:
