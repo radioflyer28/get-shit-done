@@ -1,5 +1,5 @@
 ---
-id: SEED-003
+id: SEED-008
 status: dormant
 planted: 2026-04-14
 planted_during: pre-project (no milestone yet)
@@ -7,7 +7,7 @@ trigger_when: when improving threat scanner detection precision, adding supply c
 scope: Medium
 ---
 
-# SEED-003: Adversarial Pattern Library — `threat-patterns.yml` Semgrep Ruleset
+# SEED-008: Adversarial Pattern Library — `threat-patterns.yml` Semgrep Ruleset
 
 ## Why This Matters
 
@@ -18,25 +18,25 @@ The threat scanner currently embeds its detection patterns directly inside the a
 - Don't benefit from semgrep's AST-aware matching, taint tracking, or multi-file analysis
 - Cover vanilla patterns but miss many language-idiomatic evasion techniques
 
-SEED-002 covers OWASP vulnerability patterns for the security scanner. This seed is the
-threat-scanner analog — but fundamentally different in character. Where SEED-002 looks for
+SEED-007 covers OWASP vulnerability patterns for the security scanner. This seed is the
+threat-scanner analog — but fundamentally different in character. Where SEED-007 looks for
 *accidentally vulnerable code*, this looks for *deliberately malicious code* written to evade
 casual review: obfuscated reverse shells, C2 beacons hidden in error handlers, supply chain
 hooks disguised as telemetry, logic bombs with plausible deniability.
 
 A dedicated `threat-patterns.yml` semgrep ruleset + per-language "Threat Scan Patterns"
-sections in reference files means: the pre-scan orchestrator (SEED-001) runs these rules
+sections in reference files means: the pre-scan orchestrator (SEED-006) runs these rules
 deterministically, and the agent focuses on adversarial reasoning about results — not
 mechanical grep matching.
 
 ## When to Surface
 
-**Trigger:** When implementing SEED-001 (pre-scan orchestrator ready to consume rules), when
+**Trigger:** When implementing SEED-006 (pre-scan orchestrator ready to consume rules), when
 a false negative is reported in a threat scan, or when a milestone focuses on supply chain
 security or threat intelligence.
 
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches:
-- Milestone implementing SEED-001 pre-scan orchestrator (natural pairing — need rules to run)
+- Milestone implementing SEED-006 pre-scan orchestrator (natural pairing — need rules to run)
 - Milestone improving threat scanner detection rate or reducing false negatives
 - Milestone adding supply chain attack detection capability
 - Milestone integrating threat scanning into CI/CD pipeline
@@ -52,7 +52,7 @@ This seed should be presented during `/gsd-new-milestone` when the milestone sco
 - **Obfuscation fingerprints:** base64 decode-then-eval chains, charCode array joins, computed property call patterns, homoglyph character classes (Cyrillic/Greek in identifiers), bidirectional text override characters
 - **OSINT harvesting:** bulk `process.env` access, `os.environ` enumeration, credential file path patterns (`.aws/credentials`, `.ssh/id_*`, `.kube/config`)
 
-**Per-language "Threat Scan Patterns" sections** (added alongside OWASP patterns from SEED-002):
+**Per-language "Threat Scan Patterns" sections** (added alongside OWASP patterns from SEED-007):
 - Priority languages: JavaScript/TypeScript, Python, Shell/Bash, PowerShell, Go
 - Each section: grep patterns + semgrep rules specifically for adversarial (not merely vulnerable) code
 
@@ -67,19 +67,19 @@ Related code and decisions found in the current codebase:
 
 - `agents/gsd-threat-scanner.md` — inline grep patterns in `scan_backdoors`, `scan_exfiltration`, `scan_supply_chain`, `scan_osint`, `scan_obfuscation`, `scan_deep_threats` steps — these are the source material for the semgrep rules
 - `get-shit-done/workflows/threat-scan.md` — workflow that would run the pre-scan with these rules
-- `.planning/seeds/SEED-001-security-prescan-orchestrator.md` — the runtime that would execute `threat-patterns.yml`; `PRESCAN_TOOLS` env var would include `semgrep` with `--config get-shit-done/semgrep/threat-patterns.yml`
-- `.planning/seeds/SEED-002-security-reference-sub-skills.md` — parallel effort for OWASP patterns; threat patterns go in separate files/sections
+- `.planning/seeds/SEED-006-security-prescan-orchestrator.md` — the runtime that would execute `threat-patterns.yml`; `PRESCAN_TOOLS` env var would include `semgrep` with `--config get-shit-done/semgrep/threat-patterns.yml`
+- `.planning/seeds/SEED-007-security-reference-sub-skills.md` — parallel effort for OWASP patterns; threat patterns go in separate files/sections
 - `get-shit-done/SECURITY-SCANNER-TODO.md` — §3 (Custom Semgrep Rule Library) with proposed file structure: `threat-patterns.yml` distinct from per-language security rules
 
 ## Notes
 
-Key design distinction from SEED-002:
-- SEED-002 patterns: "this code has a vulnerability an attacker could exploit"
-- SEED-003 patterns: "this code IS the attack — written deliberately to harm"
+Key design distinction from SEED-007:
+- SEED-007 patterns: "this code has a vulnerability an attacker could exploit"
+- SEED-008 patterns: "this code IS the attack — written deliberately to harm"
 
 The adversarial framing changes what rules catch. Example:
-- SEED-002 (vulnerable): `eval(user_input)` — developer made a mistake
-- SEED-003 (malicious): `eval(Buffer.from('...','base64').toString())` — someone is hiding something
+- SEED-007 (vulnerable): `eval(user_input)` — developer made a mistake
+- SEED-008 (malicious): `eval(Buffer.from('...','base64').toString())` — someone is hiding something
 
 Rule severity tiers for `threat-patterns.yml`:
 - `ERROR` — confirmed adversarial patterns (e.g., base64-then-eval in install hook)
@@ -87,3 +87,22 @@ Rule severity tiers for `threat-patterns.yml`:
 - `INFO` — anomalies that need context
 
 Semgrep metavariable-pattern approach works well for multi-hop obfuscation chains (decode → store → eval in separate statements) — use `metavariable-pattern` and `pattern-inside` extensively.
+
+**Coverage verification interaction (see SEED-006 `verify_coverage` step):**
+The pattern library enables precise coverage verification at the *category level*. Each rule
+in `threat-patterns.yml` should carry a `metadata.category` field (`backdoor`, `exfil`,
+`supply_chain`, `osint`, `obfuscation`). The `verify_coverage` step can then check: "Did we
+run rules from every applicable category? Were any categories skipped due to missing language
+support?" This turns coverage from a vague "did we look at everything?" into a measurable
+checklist gated on the rule library's own taxonomy.
+
+**Web search for emerging threat patterns (mechanism defined in SEED-006):**
+When `--web-search` is approved, the threat scanner queries for recently published adversarial
+techniques targeting the detected stack — npm supply chain advisories, PyPI typosquatting
+reports, new obfuscation techniques. These supplement the static ruleset with current
+intelligence.
+
+**Scanner purpose context:** See SEED-006 Notes for canonical scanner purpose definitions.
+This seed serves the threat scan scanner — detecting code that IS the attack in brownfield
+repos the user hasn't vetted. The security audit analog (accidentally vulnerable code) lives
+in SEED-007.

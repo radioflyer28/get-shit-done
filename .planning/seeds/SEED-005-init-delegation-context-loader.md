@@ -1,5 +1,5 @@
 ---
-id: SEED-009
+id: SEED-005
 status: dormant
 planted: 2026-04-14
 planted_during: pre-project (no milestone yet)
@@ -7,7 +7,7 @@ trigger_when: when token cost reduction or orchestrator latency becomes a priori
 scope: Medium
 ---
 
-# SEED-009: Init Delegation — Cheap Sub-Agent Handles Skill Bootstrap, Expensive Model Gets Clean Context
+# SEED-005: Init Delegation — Cheap Sub-Agent Handles Skill Bootstrap, Expensive Model Gets Clean Context
 
 ## Why This Matters
 
@@ -33,7 +33,7 @@ The fix: an **init delegation pattern** — a lightweight `gsd-context-loader` s
 a structured context packet, and returns it to the orchestrator. The orchestrator receives a clean,
 ready-to-act context and skips directly to decision-making.
 
-This mirrors the pre-scan pattern (SEED-001) but applied universally to all skill orchestrators
+This mirrors the pre-scan pattern (SEED-006) but applied universally to all skill orchestrators
 rather than just the security scanner. The result: the same work, at a fraction of the model cost,
 with lower latency (haiku responds faster than opus), and the expensive model's full context window
 is preserved for high-value reasoning rather than file loading.
@@ -46,7 +46,7 @@ or reducing the cost-per-skill-invocation.
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches:
 - Milestone on GSD performance, efficiency, or cost reduction
 - Milestone refactoring workflow patterns for consistency (natural moment to add the pattern)
-- Milestone following SEED-006 (build-skill scaffolder) — new skills could adopt the pattern from day one if the scaffolder generates it
+- Milestone following SEED-001 (build-skill scaffolder) — new skills could adopt the pattern from day one if the scaffolder generates it
 - Any milestone where "reduce expensive model token use" is a stated goal
 
 ## Scope Estimate
@@ -107,9 +107,11 @@ decision-making with the expensive model's context window reserved for actual or
 Phase 1: Implement `gsd-context-loader` agent + test with one workflow (recommend `plan-phase`
 as it has the most expensive init and is well-tested)
 
-Phase 2: Roll out to other expensive orchestrators: `execute-phase`, `new-project`, `discuss-phase`
+Phase 2: Roll out to other expensive orchestrators: `execute-phase`, `new-project`,
+`discuss-phase`, `security-audit`, `threat-scan` (scanner workflows have the same expensive
+init pattern — pre-scan tool config, reference file loading, agent skills resolution)
 
-Phase 3: Update `gsd-build-skill` scaffolder (SEED-006) to generate the `<init_delegation>`
+Phase 3: Update `gsd-build-skill` scaffolder (SEED-001) to generate the `<init_delegation>`
 pattern by default in new skills
 
 **`gsd-tools.cjs` enhancement: `init --bundle` flag**
@@ -133,8 +135,8 @@ Related code and decisions found in the current codebase:
 - `get-shit-done/bin/lib/model-profiles.cjs` — `gsd-planner: { balanced: 'opus' }`, `gsd-executor: { balanced: 'sonnet' }` — these are the models currently handling init; haiku is already available as a tier
 - `get-shit-done/bin/gsd-tools.cjs` — the `init` subcommand that would gain the `--bundle` flag; already returns `@file:` references for large payloads (the mechanism is there, just needs bundling)
 - `agents/gsd-codebase-mapper.md` — precedent: `{ balanced: 'haiku' }` already in model-profiles; shows pattern for "structural/mechanical agents get haiku"
-- `.planning/seeds/SEED-001-security-prescan-orchestrator.md` — parallel pattern in security scanner: offload mechanical work to deterministic tools before expensive agent starts
-- `.planning/seeds/SEED-006-build-skill-scaffolder.md` — future skills would adopt `<init_delegation>` pattern from scaffold if SEED-006 lands first
+- `.planning/seeds/SEED-006-security-prescan-orchestrator.md` — parallel pattern in security scanner: offload mechanical work to deterministic tools before expensive agent starts
+- `.planning/seeds/SEED-001-build-skill-scaffolder.md` — future skills would adopt `<init_delegation>` pattern from scaffold if SEED-001 lands first
 
 ## Notes
 

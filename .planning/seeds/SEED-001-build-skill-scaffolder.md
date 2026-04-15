@@ -1,13 +1,13 @@
 ---
-id: SEED-006
-status: dormant
+id: SEED-001
+status: activated
 planted: 2026-04-14
-planted_during: pre-project (no milestone yet)
+activated_during: v1.0
 trigger_when: when GSD has a stable core workflow and expanding the skill ecosystem becomes a priority, or when external contributors start building skills
 scope: Medium
 ---
 
-# SEED-006: `/gsd-build-skill` — Guided Scaffold for Creating New GSD Skills
+# SEED-001: `/gsd-build-skill` — Guided Scaffold for Creating New GSD Skills
 
 ## Why This Matters
 
@@ -52,7 +52,11 @@ Step flow:
 3. **Agent inventory** — Does this need a new agent? Or does it orchestrate existing ones? → list existing agents that could be reused
 4. **Tool permissions** — Which tools does the skill need? Validate against platform compatibility matrix
 5. **File scaffold generation** — Create `commands/gsd/{name}.md`, `get-shit-done/workflows/{name}.md`, and optionally `agents/gsd-{name}.md`, `get-shit-done/references/{name}-patterns.md`
-6. **Convention validation** — Check generated files against known GSD anti-patterns: missing `text_mode` handling, missing `<required_reading>` tag, hardcoded paths instead of `$HOME/.copilot/`, wrong `@~/.claude/` vs `@~/.copilot/` path for multi-runtime
+6. **Convention validation** — Run SEED-003's structural integrity checks (step 2) against
+   generated files. Delegates to `/gsd-audit-skill --structural-only` if SEED-003 is
+   implemented; otherwise falls back to inline checks for known GSD anti-patterns: missing
+   `text_mode` handling, missing `<required_reading>` tag, hardcoded paths instead of
+   `$HOME/.copilot/`, wrong `@~/.claude/` vs `@~/.copilot/` path for multi-runtime
 7. **Registration check** — Flag if new agents need manual registration in `CODEX_AGENT_SANDBOX`, `MODEL_PROFILES`, `agent-contracts.md`
 8. **Stub population** — Fill in template workflow steps based on skill type classification; leave `TODO:` markers for user to fill in
 9. **Install validation** — Run `node bin/install.js --dry-run` to verify new files are picked up correctly
@@ -65,9 +69,10 @@ Step flow:
 - Canonical GSD skill authoring guide (what the scaffolder uses as context)
 - Documents: file structure, convention table, platform compatibility matrix, common anti-patterns, step templates
 
-**Companion: `tests/skill-conventions.test.cjs`**
+**Companion: `tests/skill-audit-conventions.test.cjs`** (shared with SEED-003)
 - Validates all skills in `~/.copilot/skills/*/SKILL.md` conform to conventions
 - Checks: `allowed-tools` present, `execution_context` path correct, `argument-hint` present if skill takes args
+- If SEED-003 is implemented first, this test file already exists — SEED-001 reuses it
 
 ## Breadcrumbs
 
@@ -80,7 +85,7 @@ Related code and decisions found in the current codebase:
 - `bin/install.js` — 14-platform installer; convention validation must understand what it installs and where
 - `get-shit-done/bin/lib/model-profiles.cjs` — agent registration; scaffolder prompts when new agent needs registering
 - `get-shit-done/references/agent-contracts.md` — agent contracts; same registration prompt
-- `tests/agent-frontmatter.test.cjs` — existing frontmatter test; pattern for new `skill-conventions.test.cjs`
+- `tests/agent-frontmatter.test.cjs` — existing frontmatter test; pattern for `tests/skill-audit-conventions.test.cjs`
 
 ## Notes
 
@@ -93,3 +98,20 @@ Key design question for this phase: should `gsd-build-skill` generate a complete
 (higher bar, more complex scaffolder) or a well-structured stub with clear TODOs (lower bar,
 faster to implement, still very useful)? Recommendation: stub-first, with a `--full` flag for
 the scaffolder to attempt complete generation using the description + existing exemplars.
+
+**SMART compliance (summary — authoritative criteria in SEED-003 / `references/skill-smart-criteria.md`):**
+Generated skills should aim for SMART principles from the start:
+- **Specific:** scaffold step instructions with concrete actions, not vague verbs
+- **Measurable:** every step template includes an observable output (file, section, decision)
+- **Achievable:** tool permissions match actual workflow needs; no impossible steps
+- **Relevant:** no orphan steps; every step serves the stated objective
+- **Time-bound:** include depth gates or iteration caps in templates for variable-scope work
+
+Both `/gsd-build-skill` and `/gsd-audit-skill` (SEED-003) consume the same rubric from
+`references/skill-smart-criteria.md` — ensuring skills are SMART from creation through audit.
+If SEED-001 is implemented before SEED-003, create a minimal `references/skill-smart-criteria.md`
+with these 5 dimensions. SEED-003 will expand it into the full rubric with sub-criteria and
+scoring guidance.
+
+**Skill lifecycle:** This seed is the **create** step. The full lifecycle:
+SEED-001 (create) → SEED-003 (audit) → SEED-002 (tune) → SEED-004 (evolve).

@@ -1,5 +1,5 @@
 ---
-id: SEED-002
+id: SEED-007
 status: dormant
 planted: 2026-04-14
 planted_during: pre-project (no milestone yet)
@@ -7,7 +7,7 @@ trigger_when: when improving scanner precision, reducing false positives, or add
 scope: Large
 ---
 
-# SEED-002: Security Reference Sub-Skills — Evolve Passive Docs to Executable Scan Helpers
+# SEED-007: Security Reference Sub-Skills — Evolve Passive Docs to Executable Scan Helpers
 
 ## Why This Matters
 
@@ -28,13 +28,13 @@ step without needing to construct them from scratch.
 ## When to Surface
 
 **Trigger:** When we add a new language to security scanning support, start a milestone on
-scanner precision/accuracy improvement, or implement SEED-001 (pre-scan orchestrator) — the
+scanner precision/accuracy improvement, or implement SEED-006 (pre-scan orchestrator) — the
 executable patterns are what feed into the tool registry.
 
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches
 any of these conditions:
 - Milestone adds security analysis for a specific language (Python, JS/TS, Go, etc.)
-- Milestone follows completion of SEED-001 (pre-scan orchestrator in place — now layer on per-language rules)
+- Milestone follows completion of SEED-006 (pre-scan orchestrator in place — now layer on per-language rules)
 - Milestone reduces scanner false positive rate
 - Milestone adds semgrep custom rule support to the GSD scanner
 
@@ -97,5 +97,10 @@ rules:
 ```
 ```
 
-This is the "reference layer" — works standalone or alongside SEED-001's orchestrator.
-Implementing SEED-001 first is recommended so the patterns have a runtime to execute in.
+This is the "reference layer" — works standalone or alongside SEED-006's orchestrator.
+Implementing SEED-006 first is recommended so the patterns have a runtime to execute in.
+
+**Scanner purpose context:** See SEED-006 Notes for canonical scanner purpose definitions.
+This seed primarily serves the security audit scanner — deterministic OWASP vulnerability
+pattern matching for developers improving their own code. The threat scan analog (deliberately
+malicious patterns) lives in SEED-008.

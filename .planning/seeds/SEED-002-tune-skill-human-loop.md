@@ -1,13 +1,13 @@
 ---
-id: SEED-007
-status: dormant
+id: SEED-002
+status: activated
 planted: 2026-04-14
-planted_during: pre-project (no milestone yet)
+activated_during: v1.0
 trigger_when: when skill quality feedback loops become important — after core skill library is stable and users/contributors start reporting friction, confusion, or missed cases
 scope: Medium
 ---
 
-# SEED-007: `/gsd-tune-skill` — Human-in-the-Loop Skill Improvement
+# SEED-002: `/gsd-tune-skill` — Human-in-the-Loop Skill Improvement
 
 ## Why This Matters
 
@@ -27,18 +27,18 @@ mentally model what an agent would do, identify the gap, edit carefully. For lar
 - It proposes a minimal, targeted diff — no over-engineering
 - You review the diff, approve/reject, it commits
 
-This is the manual (human-in-the-loop) counterpart to the autonomous loop in SEED-008.
-Both seeds can exist independently, but SEED-007 is lower risk and a natural precursor.
+This is the manual (human-in-the-loop) counterpart to the autonomous loop in SEED-004.
+Both seeds can exist independently, but SEED-002 is lower risk and a natural precursor.
 
 ## When to Surface
 
 **Trigger:** When GSD has an active user base reporting skill friction, or when a milestone
-explicitly focuses on "skill quality" or "workflow reliability." Also surfaces when SEED-006
+explicitly focuses on "skill quality" or "workflow reliability." Also surfaces when SEED-001
 (build-skill) lands — you need tune-skill to improve what build-skill creates.
 
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches:
 - Milestone improving existing skill quality or reliability
-- Milestone following completion of SEED-006 (skill authoring tooling in place — now add the tuning layer)
+- Milestone following completion of SEED-001 (skill authoring tooling in place — now add the tuning layer)
 - Milestone where "improve agent instruction quality" is a stated goal
 - Milestone addressing user-reported friction with specific GSD workflows
 
@@ -55,7 +55,7 @@ Step flow:
    - "What should have happened?" (expected behavior)
    - Optional: paste session excerpt or error log
    - Optional: `--transcript <path>` to analyze a debug log directly
-3. **Diagnosis via auditor** — delegate to SEED-010's `/gsd-audit-skill` as the evaluation
+3. **Diagnosis via auditor** — delegate to SEED-003's `/gsd-audit-skill` as the evaluation
    engine (no duplicate diagnosis logic in the tuner):
    - Run `/gsd-audit-skill <skill-name>` to produce `SKILL-AUDIT.md` with structural checks,
      SMART scorecard, prompt quality findings, and tool usage audit
@@ -77,7 +77,7 @@ Step flow:
 7. **Apply + commit** — apply approved edit, commit with message: `fix(skill): tune {skill-name} — {symptom summary}`
 8. **Post-fix audit** — re-run `/gsd-audit-skill <skill-name> --structural-only` to verify
    the edit didn't introduce new structural issues or SMART regressions. If tests exist
-   (`tests/skill-conventions.test.cjs` from SEED-006), run those too.
+   (`tests/skill-audit-conventions.test.cjs` from SEED-003), run those too.
 
 **New agent: `gsd-skill-tuner`**
 - Specialist in proposing minimal, targeted fixes for audit findings — NOT a diagnoser
@@ -92,13 +92,13 @@ Step flow:
 - `--batch` — process a list of reported issues from a file (for milestone-scale skill quality sprints)
 
 **SMART compliance:** When proposing fixes, the tuner should verify the edited skill still
-meets SMART criteria (using `references/skill-smart-criteria.md` from SEED-006/SEED-010).
+meets SMART criteria (using `references/skill-smart-criteria.md` from SEED-001/SEED-003).
 A fix that resolves one symptom but introduces vagueness or unbounded scope is not an
 improvement.
 
 **Skill lifecycle:** This seed is the **tune** step. The full lifecycle:
-SEED-006 (create) → SEED-010 (audit) → SEED-007 (tune) → SEED-008 (evolve).
-The auditor (SEED-010) produces structured findings that serve as direct input to tune-skill
+SEED-001 (create) → SEED-003 (audit) → SEED-002 (tune) → SEED-004 (evolve).
+The auditor (SEED-003) produces structured findings that serve as direct input to tune-skill
 via the `--fix` flag — automating the symptom-collection step with audit-derived diagnostics.
 
 ## Breadcrumbs
@@ -109,8 +109,8 @@ Related code and decisions found in the current codebase:
 - `~/.copilot/skills/*/SKILL.md` — all installed skills; tune-skill can target either installed or source versions
 - `bin/install.js` — after tuning, skill changes need re-install to propagate; workflow should prompt: "Run `/gsd-update` to propagate changes to all platforms?"
 - `tests/agent-frontmatter.test.cjs` — tests that skill tuning shouldn't break
-- `.planning/seeds/SEED-006-build-skill-scaffolder.md` — precursor; `skill-authoring.md` reference from SEED-006 is what the skill-tuner uses as its convention baseline
-- `.planning/seeds/SEED-008-*` (when planted) — the autonomous version of this skill; SEED-007 is the human-gated version SEED-008 automates
+- `.planning/seeds/SEED-001-build-skill-scaffolder.md` — precursor; `skill-authoring.md` reference from SEED-001 is what the skill-tuner uses as its convention baseline
+- `.planning/seeds/SEED-004-autoresearch-skill-loop.md` — the autonomous version of this skill; SEED-002 is the human-gated version SEED-004 automates
 
 ## Notes
 
@@ -119,7 +119,7 @@ The `tune-skill` concept mirrors how Karpathy describes `program.md` evolution i
 the fastest research progress." In GSD's case, the "metric" is not val_bpb but *skill friction*
 — how often does an agent using this skill need human correction, re-tries, or deviation handling?
 
-**Why delegate diagnosis to the auditor (SEED-010) instead of building diagnosis into the tuner?**
+**Why delegate diagnosis to the auditor (SEED-003) instead of building diagnosis into the tuner?**
 Same reason GSD separates discuss→plan→execute: separation of concerns. The auditor owns the
 evaluation rubric (SMART criteria, structural checks, prompt quality, tool usage). The tuner
 owns the fix proposal. If both do diagnosis, the rubrics drift apart — what the auditor flags

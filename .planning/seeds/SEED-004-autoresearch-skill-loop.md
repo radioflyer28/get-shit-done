@@ -1,13 +1,13 @@
 ---
-id: SEED-008
+id: SEED-004
 status: dormant
 planted: 2026-04-14
 planted_during: pre-project (no milestone yet)
-trigger_when: when SEED-007 (manual tuning) is operational and skill quality metrics become important enough to warrant autonomous improvement — likely when GSD has an active user base generating enough session data to learn from
+trigger_when: when SEED-002 (manual tuning) is operational and skill quality metrics become important enough to warrant autonomous improvement — likely when GSD has an active user base generating enough session data to learn from
 scope: Large
 ---
 
-# SEED-008: Autonomous Skill Tuning Loop — Karpathy Autoresearch for GSD Skills
+# SEED-004: Autonomous Skill Tuning Loop — Karpathy Autoresearch for GSD Skills
 
 ## Why This Matters
 
@@ -28,8 +28,8 @@ automate approval without risking instruction drift. The autoresearch loop here 
 
 1. **Observe passively:** A `gsd-skill-observer` sub-agent reads session transcripts/debug logs
    where a specific skill was used, extracts friction signals
-2. **Diagnose autonomously:** Same analysis as `gsd-skill-tuner` (SEED-007) — classify failure
-   type, locate the instruction responsible
+2. **Diagnose via auditor:** Delegate to SEED-003's `/gsd-audit-skill` — classify failure
+   type, locate the instruction responsible (no duplicate diagnosis logic)
 3. **Propose:** Generate a candidate edit, scored by confidence
 4. **Human gate (configurable):** At high confidence (≥0.85), auto-apply to a `skill-tuning`
    branch. At lower confidence, surface to human via `/gsd-tune-skill --review` for approval
@@ -42,13 +42,13 @@ that degrades silently as models and platforms evolve.
 
 ## When to Surface
 
-**Trigger:** When SEED-007 (manual tuning) is operational and GSD has enough session volume
+**Trigger:** When SEED-002 (manual tuning) is operational and GSD has enough session volume
 to generate meaningful signal — likely when GSD reaches community adoption scale or when an
 internal team is using GSD heavily enough that skill friction is measurable.
 
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches:
 - Milestone explicitly focused on "self-improving GSD" or AI-assisted skill optimization
-- Milestone following completion of SEED-007 (manual tuning baseline established — now automate)
+- Milestone following completion of SEED-002 (manual tuning baseline established — now automate)
 - Milestone where GSD session volume is high enough to make friction scoring meaningful
 - Milestone exploring meta-learning or AI-assisted AI tooling development
 
@@ -71,19 +71,19 @@ This seed should be presented during `/gsd-new-milestone` when the milestone sco
 - `gsd-tools.cjs skill-metrics show <skill>` — aggregate friction score per skill per step
 
 **Phase B: Autonomous Diagnosis and Proposal**
-- Diagnosis delegates to SEED-010's auditor — no duplicate evaluation logic:
+- Diagnosis delegates to SEED-003's auditor — no duplicate evaluation logic:
   - Run `/gsd-audit-skill <skill> --json` to get current SMART scores + findings
   - Cross-reference audit findings against friction log: which findings correlate with
     high-friction steps? (e.g., step 4 has high retry rate AND auditor flags it as
     under-specified → high-confidence diagnosis)
   - This replaces building a separate diagnosis engine — the auditor is the single
     source of truth for "what's wrong with this skill"
-- `gsd-skill-improver` agent: receives correlated audit findings + friction data,
-  generates candidate edits (same fix-proposal role as SEED-007's `gsd-skill-tuner`,
-  but without human interaction)
+- `gsd-skill-tuner` agent (same agent as SEED-002): receives correlated audit findings +
+  friction data, generates candidate edits (same fix-proposal role as in SEED-002's manual
+  tune flow, but without human interaction)
 - Confidence scoring: how certain is the agent that this edit will reduce friction?
   - 0.9+: Apply automatically to `skill-tuning` branch
-  - 0.7-0.9: Surface to human via SEED-007 tuning flow (human-gated)
+  - 0.7-0.9: Surface to human via SEED-002 tuning flow (human-gated)
   - <0.7: Log as "needs investigation" — requires human analysis first
 - Post-edit audit: re-run `/gsd-audit-skill <skill> --json` to verify SMART scores
   didn't regress — reject edits that fix friction but introduce structural issues
@@ -120,10 +120,10 @@ Related code and decisions found in the current codebase:
 - `hooks/gsd-workflow-guard.js` — existing workflow guard; friction detection builds on workflow state tracking
 - `hooks/gsd-session-state.sh` — session state tracking; friction events need a session boundary concept
 - `c:\Users\akriz\AppData\Roaming\Code - Insiders\User\workspaceStorage\...\GitHub.copilot-chat\debug-logs\` — VS Code Copilot stores session transcripts here (used in this very conversation); this is where the skill observer reads from
-- `.planning/seeds/SEED-006-build-skill-scaffolder.md` — SEED-006 produces skills; SEED-008 improves them
-- `.planning/seeds/SEED-007-tune-skill-human-loop.md` — SEED-007 is the human-gated version; SEED-008 automates the loop with human gates only at low confidence
-- `.planning/seeds/SEED-010-skill-auditor.md` — SEED-010 provides the evaluation engine;
-  SEED-008 delegates diagnosis to the auditor and uses SMART scores as a quality metric
+- `.planning/seeds/SEED-001-build-skill-scaffolder.md` — SEED-001 produces skills; SEED-004 improves them
+- `.planning/seeds/SEED-002-tune-skill-human-loop.md` — SEED-002 is the human-gated version; SEED-004 automates the loop with human gates only at low confidence
+- `.planning/seeds/SEED-003-skill-auditor.md` — SEED-003 provides the evaluation engine;
+  SEED-004 delegates diagnosis to the auditor and uses SMART scores as a quality metric
   alongside friction scores (prevents building duplicate evaluation logic)
 - `get-shit-done/workflows/` — all workflows that would be observed and potentially auto-improved
 - `get-shit-done/bin/gsd-tools.cjs` — `skill-metrics` subcommands would be added here
@@ -199,7 +199,7 @@ These are not mutually exclusive — they're two loops at different timescales:
 **Recommended decision:** Implement the granular (micro) loop first — it's safer, faster to get
 signal, and more directly useful. The milestone-level loop is a natural Phase E once the micro
 loop proves out the infrastructure and the `skill-improvement-program.md` concept. The milestone
-loop may warrant its own seed (SEED-008b or a future dedicated seed) given its distinct risk
+loop may warrant its own seed (SEED-004b or a future dedicated seed) given its distinct risk
 profile and trigger conditions (needs multi-milestone history, not just session transcripts).
 
 This scoping decision should be revisited when planning the milestone that picks up this seed —
@@ -228,9 +228,9 @@ the agent only modifies `train.py`. GSD analog: the skill improver can only modi
 safety constraint.
 
 Session volume requirement: autoresearch needs ~12 experiments/hour to be useful overnight.
-GSD needs ~10 sessions per skill to get a reliable friction score. This means SEED-008 is only
+GSD needs ~10 sessions per skill to get a reliable friction score. This means SEED-004 is only
 meaningful once there's real usage data — hence the "community adoption" trigger condition.
-Start with SEED-007 (manual tuning) to establish the classification rubric and tooling before
+Start with SEED-002 (manual tuning) to establish the classification rubric and tooling before
 automating the loop.
 
 The `skill-improvement-program.md` is the most interesting design artifact: it encodes the
@@ -238,8 +238,8 @@ The `skill-improvement-program.md` is the most interesting design artifact: it e
 signals matter, when to auto-apply vs human-gate) is itself a form of autoresearch at the skill
 ecosystem level.
 
-**SMART audit scores as an optimization metric (see SEED-010):**
-The skill auditor (SEED-010) produces a per-dimension SMART score (1-5) for each skill. The
+**SMART audit scores as an optimization metric (see SEED-003):**
+The skill auditor (SEED-003) produces a per-dimension SMART score (1-5) for each skill. The
 autoresearch loop can use SMART scores as a complementary metric alongside friction scores:
 friction measures *how the skill performs in practice*; SMART scores measure *how well the skill
 is structured in theory*. An ideal improvement edit increases both. A fix that reduces friction
@@ -248,4 +248,4 @@ with the current model) should be flagged — it's likely a fragile improvement 
 survive a model change.
 
 **Skill lifecycle:** This seed is the **evolve** step. The full lifecycle:
-SEED-006 (create) → SEED-010 (audit) → SEED-007 (tune) → SEED-008 (evolve).
+SEED-001 (create) → SEED-003 (audit) → SEED-002 (tune) → SEED-004 (evolve).

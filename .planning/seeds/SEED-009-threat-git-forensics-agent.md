@@ -1,5 +1,5 @@
 ---
-id: SEED-004
+id: SEED-009
 status: dormant
 planted: 2026-04-14
 planted_during: pre-project (no milestone yet)
@@ -7,7 +7,7 @@ trigger_when: when supply chain attacks or contributor-based threats become a fo
 scope: Medium
 ---
 
-# SEED-004: Git Forensics Sub-Agent — Structured Deep-Dive into Commit History
+# SEED-009: Git Forensics Sub-Agent — Structured Deep-Dive into Commit History
 
 ## Why This Matters
 
@@ -37,7 +37,7 @@ bar for what GSD's threat scanner should catch.
 
 This seed should be presented during `/gsd-new-milestone` when the milestone scope matches:
 - Milestone improving supply chain attack detection in `gsd-threat-scanner`
-- Milestone implementing SEED-001 or SEED-003 (natural moment to add forensics depth)
+- Milestone implementing SEED-006 or SEED-008 (natural moment to add forensics depth)
 - Milestone adding CI-based threat scanning for PRs (needs git forensics to analyze what changed)
 - Milestone following a real-world supply chain incident (xz utils, npm protestware, etc.)
 
@@ -107,3 +107,26 @@ this repository. What traces might they have left? What might they have tried to
 Possible standalone agent name: `gsd-git-forensics` — or fold into `gsd-threat-scanner` as
 a structured pre-analysis step via `Task()` spawn. Standalone agent is cleaner and reusable
 outside threat scanning context (e.g., code review of PRs from unknown contributors).
+**Decision affects SEED-006 and SEED-008 integration points** — resolve during
+`/gsd-discuss-phase` when this seed is picked up for implementation.
+
+**Threat model interaction (see SEED-006 `build_threat_model` step):**
+Git forensics findings should feed directly into the threat model. If forensics identifies
+one-time contributors who touched auth-critical files, or force-push rewrites to security
+modules, the threat model elevates those files to high-priority scan targets. The flow:
+forensics (early) → threat model (mid) → scan dispatch (late) — each step narrows focus.
+
+**Web search for contributor intelligence (mechanism defined in SEED-006):**
+When `--web-search` is approved, git forensics can cross-reference contributor identities:
+- Check if contributor emails appear in known-compromised account disclosures
+- Look up package maintainer reputation for dependencies they added
+- Search for CVEs or security advisories related to commits they authored in other repos
+- Check if commit signing keys appear in revocation lists
+Intelligence is tagged `[WEB-INTEL]` and marked as supplementary — never used as sole basis
+for a finding. **Privacy note:** queries are public info only but the user should be informed
+that contributor identities will be searched.
+
+**Scanner purpose context:** See SEED-006 Notes for canonical scanner purpose definitions.
+Git forensics is threat-scan-specific — detecting whether a malicious contributor planted
+something in a brownfield repo. Does not apply to security audits where contributors are
+trusted.
