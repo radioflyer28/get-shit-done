@@ -113,7 +113,7 @@ User-facing entry points. Each file contains YAML frontmatter (name, description
 - **Copilot:** Slash commands (`/gsd-command-name`)
 - **Antigravity:** Skills
 
-**Total commands:** 73
+**Total commands:** 76
 
 ### Workflows (`get-shit-done/workflows/*.md`)
 
@@ -124,7 +124,7 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 71
+**Total workflows:** 74
 
 ### Agents (`agents/*.md`)
 
@@ -134,7 +134,7 @@ Specialized agent definitions with frontmatter specifying:
 - `tools` — Allowed tool access (Read, Write, Edit, Bash, Grep, Glob, WebSearch, etc.)
 - `color` — Terminal output color for visual distinction
 
-**Total agents:** 31
+**Total agents:** 34
 
 ### References (`get-shit-done/references/*.md`)
 
@@ -409,14 +409,14 @@ UI-SPEC.md (per phase) ───────────────────
 
 ```
 ~/.claude/                          # Claude Code (global install)
-├── commands/gsd/*.md               # 73 slash commands
+├── commands/gsd/*.md               # 76 slash commands
 ├── get-shit-done/
 │   ├── bin/gsd-tools.cjs           # CLI utility
 │   ├── bin/lib/*.cjs               # 19 domain modules
-│   ├── workflows/*.md              # 71 workflow definitions
+│   ├── workflows/*.md              # 74 workflow definitions
 │   ├── references/*.md             # 35 shared reference docs
 │   └── templates/                  # Planning artifact templates
-├── agents/*.md                     # 31 agent definitions
+├── agents/*.md                     # 34 agent definitions
 ├── hooks/
 │   ├── gsd-statusline.js           # Statusline hook
 │   ├── gsd-context-monitor.js      # Context warning hook
