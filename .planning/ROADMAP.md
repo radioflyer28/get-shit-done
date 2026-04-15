@@ -10,7 +10,7 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Shared Infrastructure** - SMART rubric, convention tests, and authoring guide consumed by all three skills
+- [x] **Phase 1: Shared Infrastructure** - SMART rubric, convention tests, and authoring guide consumed by all three skills (completed 2026-04-15)
 - [ ] **Phase 2: Skill Auditor Core** - Single-skill audit with structural, SMART, prompt quality, and tool usage checks
 - [ ] **Phase 3: Auditor Extensions** - Operational flags for CI, batch mode, fix routing, and JSON output
 - [ ] **Phase 4: Skill Scaffolder** - Guided skill creation with convention-compliant file generation
@@ -29,9 +29,9 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
   3. All existing 50+ skills pass the convention test suite (or known failures are explicitly documented with rationale)
   4. `references/skill-authoring.md` documents file structure, naming conventions, platform compatibility matrix, and common anti-patterns
 **Plans**: 3 plans
-- [ ] 01-01-PLAN.md — Create skill-smart-criteria.md (SMART rubric, 5 dimensions, 1-5 scoring)
-- [ ] 01-02-PLAN.md — Create skill-audit-conventions.test.cjs (structural convention checks)
-- [ ] 01-03-PLAN.md — Create skill-authoring.md (authoring reference guide)
+- [x] 01-01-PLAN.md — Create skill-smart-criteria.md (SMART rubric, 5 dimensions, 1-5 scoring)
+- [x] 01-02-PLAN.md — Create skill-audit-conventions.test.cjs (structural convention checks)
+- [x] 01-03-PLAN.md — Create skill-authoring.md (authoring reference guide)
 
 ### Phase 2: Skill Auditor Core
 **Goal**: Users can audit any single skill and receive a comprehensive quality report covering structure, SMART compliance, prompt quality, and tool usage
@@ -107,7 +107,7 @@ v1.0 is complete when:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
-| 1. Shared Infrastructure | 0/? | Not started | - |
+| 1. Shared Infrastructure | 3/3 | Complete   | 2026-04-15 |
 | 2. Skill Auditor Core | 0/? | Not started | - |
 | 3. Auditor Extensions | 0/? | Not started | - |
 | 4. Skill Scaffolder | 0/? | Not started | - |
