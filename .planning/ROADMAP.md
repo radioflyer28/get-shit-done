@@ -10,8 +10,9 @@ This milestone adds skill lifecycle tooling to GSD — create, audit, and tune s
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [x] **Phase 1: Shared Infrastructure** - SMART rubric, convention tests, and authoring guide consumed by all three skills (completed 2026-04-15)
-- [ ] **Phase 2: Skill Auditor Core** - Single-skill audit with structural, SMART, prompt quality, and tool usage checks
+- [x] **Phase 1: Shared Infrastructure** - SMART rubric, convention tests, and authoring guide consumed by all three skills
+ (completed 2026-04-15)
+- [x] **Phase 2: Skill Auditor Core** - Single-skill audit with structural, SMART, prompt quality, and tool usage checks
 - [ ] **Phase 3: Auditor Extensions** - Operational flags for CI, batch mode, fix routing, and JSON output
 - [ ] **Phase 4: Skill Scaffolder** - Guided skill creation with convention-compliant file generation
 - [ ] **Phase 5: Skill Tuner** - Symptom-driven, human-in-the-loop skill improvement via audit-backed diagnosis
@@ -108,7 +109,7 @@ v1.0 is complete when:
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 1. Shared Infrastructure | 3/3 | Complete   | 2026-04-15 |
-| 2. Skill Auditor Core | 0/2 | Planned    |  |
+| 2. Skill Auditor Core | 2/2 | Complete   | 56f7967, fd6ebae |
 | 3. Auditor Extensions | 0/? | Not started | - |
 | 4. Skill Scaffolder | 0/? | Not started | - |
 | 5. Skill Tuner | 0/? | Not started | - |
