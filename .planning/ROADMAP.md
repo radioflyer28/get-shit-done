@@ -108,7 +108,7 @@ v1.0 is complete when:
 | Phase | Plans Complete | Status | Completed |
 |-------|---------------|--------|-----------|
 | 1. Shared Infrastructure | 3/3 | Complete   | 2026-04-15 |
-| 2. Skill Auditor Core | 0/? | Not started | - |
+| 2. Skill Auditor Core | 0/2 | Planned    |  |
 | 3. Auditor Extensions | 0/? | Not started | - |
 | 4. Skill Scaffolder | 0/? | Not started | - |
 | 5. Skill Tuner | 0/? | Not started | - |
