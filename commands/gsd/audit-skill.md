@@ -2,7 +2,7 @@
 type: prompt
 name: gsd:audit-skill
 description: Audit a GSD skill for structure, SMART compliance, prompt quality, and tool usage — produces SKILL-AUDIT.md with PASS / PASS WITH WARNINGS / FAIL verdict
-argument-hint: "<skill-name> [--output <path>]"
+argument-hint: "<skill-name> [--output <path>] [--structural-only] [--depth quick|standard|deep] [--fix] [--json]"
 allowed-tools:
   - Read
   - Write
@@ -22,6 +22,10 @@ Verdict: PASS / PASS WITH WARNINGS / FAIL
 
 Flags:
 - `--output <path>` — write report to specified path (default: SKILL-AUDIT.md in current directory)
+- `--structural-only` — run only deterministic structural checks; alias for `--depth quick`; exits nonzero on structural failure; suitable for CI pipelines (per D-01, D-03)
+- `--depth <quick|standard|deep>` — control audit depth: `quick` (structural checks only, fast, CI-suitable), `standard` (full audit, default), `deep` (full audit with expanded evidence and stricter warning surfacing) (per D-02)
+- `--fix` — after audit completes, route all findings to `/gsd-tune-skill` for remediation; if tuner unavailable, prints soft warning to stderr and still saves SKILL-AUDIT.md (per D-04, D-05, D-06)
+- `--json` — print all findings as structured JSON to stdout; `schema_version: "1.0"`, flat findings array; SKILL-AUDIT.md is still written to disk normally; can be combined with `--depth` (per D-07, D-08, D-09, D-10)
 </objective>
 
 <execution_context>
