@@ -47,19 +47,88 @@ const _cache = {
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
- * Attempt YAML parse: use js-yaml if available, otherwise naive regex fallback.
+ * Parse the semgrep-rules-library.yml into a structured object.
+ * This is a purpose-built parser for the known schema of our YAML file.
+ * It does NOT attempt to be a general YAML parser.
+ *
+ * Schema handled:
+ *   version: "1.0"
+ *   semgrep_cli_pinned: "1.45.0"
+ *   community_ruleset_version: "1.42.0"
+ *   update_date: "2026-04-16"
+ *   rules:
+ *     rule-id:
+ *       source: "p/security-audit"
+ *       owasp: "A03:2021-Injection"
+ *       languages: [python]
+ *       ...
+ *
  * @param {string} content
  * @returns {object}
  */
 function _parseYaml(content) {
-  try {
-    // eslint-disable-next-line import/no-extraneous-dependencies
-    const yaml = require('js-yaml');
-    return yaml.load(content);
-  } catch (_) {
-    // Fallback: return raw content for consumers that do their own parsing
-    return { _raw: content, _parseError: 'js-yaml not available, raw content returned' };
+  const result = { rules: {} };
+  const lines = content.split('\n');
+
+  let currentRule = null;
+  let inRules = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trimEnd();
+
+    // Skip comments and empty lines
+    if (trimmed.startsWith('#') || trimmed.trim() === '') continue;
+
+    // Top-level key-only line (e.g. "rules:")
+    const keyOnly = trimmed.match(/^([a-zA-Z_]+):\s*(?:#.*)?$/);
+    if (keyOnly && !trimmed.startsWith(' ') && !trimmed.startsWith('\t')) {
+      if (keyOnly[1] === 'rules') { inRules = true; }
+      continue;
+    }
+
+    // Top-level scalar fields
+    const topLevel = trimmed.match(/^([a-zA-Z_]+):\s*["']?([^"'#\n]+?)["']?\s*(?:#.*)?$/);
+    if (topLevel && !trimmed.startsWith(' ') && !trimmed.startsWith('\t')) {
+      const key = topLevel[1];
+      const val = topLevel[2].trim();
+      if (key === 'rules') { inRules = true; } else { result[key] = val; }
+      continue;
+    }
+
+    if (!inRules) continue;
+
+    // Rule ID line (2-space indent, key ending with colon, no value)
+    const ruleIdMatch = trimmed.match(/^  ([a-z][a-z0-9-]+):\s*$/);
+    if (ruleIdMatch) {
+      currentRule = ruleIdMatch[1];
+      result.rules[currentRule] = {};
+      continue;
+    }
+
+    // Rule field (4-space indent)
+    if (currentRule && trimmed.match(/^    [a-zA-Z_]+:/)) {
+      const fieldMatch = trimmed.match(/^    ([a-zA-Z_]+):\s*(.*)$/);
+      if (fieldMatch) {
+        const key = fieldMatch[1];
+        let val = fieldMatch[2].trim().replace(/^["']|["']$/g, '');
+
+        // Handle inline arrays: [python] or [javascript, typescript]
+        if (val.startsWith('[') && val.endsWith(']')) {
+          val = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+        }
+        // Handle boolean-like values
+        else if (val === 'true') val = true;
+        else if (val === 'false') val = false;
+        // Handle numeric
+        else if (!isNaN(parseFloat(val)) && val !== '') val = parseFloat(val);
+
+        result.rules[currentRule][key] = val;
+      }
+    }
   }
+
+  return result;
 }
 
 /**
