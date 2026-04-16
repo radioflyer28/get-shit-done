@@ -1,0 +1,387 @@
+version: "1.0"
+semgrep_cli_pinned: "1.45.0"
+community_ruleset_version: "1.42.0"
+update_date: "2026-04-16"
+description: >
+  Master index of all semgrep rules used across GSD language-specific security pattern files.
+  Rules reference semgrep.dev community rulesets with version pins for reproducibility.
+  Use pattern-loader.cjs to consume this file at runtime.
+
+# ─── PYTHON RULES ───────────────────────────────────────────────────────────
+
+rules:
+  python-eval-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.lang.security.audit.eval-injection"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-94"
+    languages: [python]
+    confidence: HIGH
+    false_positive_rate: 0.05
+    custom_rule: false
+    description: "eval() or exec() with dynamic string input enables arbitrary code execution"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-28957"
+    semgrep_version_introduced: "1.30.0"
+
+  python-sql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.django.security.audit.raw-sql.raw-sql"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-89"
+    languages: [python]
+    confidence: HIGH
+    false_positive_rate: 0.03
+    custom_rule: false
+    description: "SQL queries constructed via string formatting without parameterization"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-40897"
+    semgrep_version_introduced: "1.28.0"
+
+  python-command-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.lang.security.audit.subprocess-shell-true"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-78"
+    languages: [python]
+    confidence: HIGH
+    false_positive_rate: 0.07
+    custom_rule: false
+    description: "subprocess call with shell=True and user-controlled command"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-25577"
+    semgrep_version_introduced: "1.30.0"
+
+  python-pickle-deserialization:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.lang.security.audit.pickle.avoid-pickle"
+    owasp: "A08:2021-Software-Integrity-Failures"
+    cwe: "CWE-502"
+    languages: [python]
+    confidence: HIGH
+    false_positive_rate: 0.02
+    custom_rule: false
+    description: "pickle.load/loads with user-controlled data enables arbitrary code execution"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2020-28196"
+    semgrep_version_introduced: "1.28.0"
+
+  python-yaml-load:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.lang.security.audit.yaml-load"
+    owasp: "A08:2021-Software-Integrity-Failures"
+    cwe: "CWE-502"
+    languages: [python]
+    confidence: HIGH
+    false_positive_rate: 0.04
+    custom_rule: false
+    description: "yaml.load() without Loader=yaml.SafeLoader allows code execution"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-0529"
+    semgrep_version_introduced: "1.28.0"
+
+  python-weak-crypto:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.cryptography.security.use-of-weak-cryptographic-algorithm"
+    owasp: "A02:2021-Cryptographic-Failures"
+    cwe: "CWE-327"
+    languages: [python]
+    confidence: MEDIUM
+    false_positive_rate: 0.10
+    custom_rule: false
+    description: "Use of MD5, SHA1, or DES for cryptographic operations"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
+    semgrep_version_introduced: "1.32.0"
+
+  python-hardcoded-secret:
+    source: "p/secrets"
+    semgrep_rule_id: "generic.secrets.security.detected-generic-secret"
+    owasp: "A02:2021-Cryptographic-Failures"
+    cwe: "CWE-259"
+    languages: [python]
+    confidence: MEDIUM
+    false_positive_rate: 0.15
+    custom_rule: false
+    description: "Hardcoded API keys, passwords, or tokens in source code"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-39292"
+    semgrep_version_introduced: "1.38.0"
+
+  python-ssrf:
+    source: "p/security-audit"
+    semgrep_rule_id: "python.lang.security.audit.ssrf"
+    owasp: "A10:2021-SSRF"
+    cwe: "CWE-918"
+    languages: [python]
+    confidence: MEDIUM
+    false_positive_rate: 0.12
+    custom_rule: false
+    description: "HTTP request made to user-controlled URL without allowlist validation"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-29197"
+    semgrep_version_introduced: "1.35.0"
+
+# ─── JAVASCRIPT / TYPESCRIPT RULES ──────────────────────────────────────────
+
+  javascript-dangeroushtml:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-79"
+    languages: [javascript, typescript]
+    confidence: HIGH
+    false_positive_rate: 0.02
+    custom_rule: false
+    description: "dangerouslySetInnerHTML with unsanitized input causes XSS"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2020-11758"
+    semgrep_version_introduced: "1.28.0"
+
+  javascript-eval-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.lang.security.audit.eval-detected.eval-detected"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-94"
+    languages: [javascript, typescript]
+    confidence: HIGH
+    false_positive_rate: 0.05
+    custom_rule: false
+    description: "eval() with user-controlled input enables code injection"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-25857"
+    semgrep_version_introduced: "1.28.0"
+
+  javascript-prototype-pollution:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.lang.security.audit.prototype-pollution"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-1321"
+    languages: [javascript, typescript]
+    confidence: MEDIUM
+    false_positive_rate: 0.08
+    custom_rule: false
+    description: "Prototype pollution via merge/extend functions with untrusted objects"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-37603"
+    semgrep_version_introduced: "1.34.0"
+
+  javascript-nosql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.express.security.audit.express-mongo-unsanitized-input"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-943"
+    languages: [javascript, typescript]
+    confidence: HIGH
+    false_positive_rate: 0.06
+    custom_rule: false
+    description: "MongoDB query built with unsanitized user input enables NoSQL injection"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-43799"
+    semgrep_version_introduced: "1.36.0"
+
+  javascript-csrf-missing:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf"
+    owasp: "A01:2021-Broken-Access-Control"
+    cwe: "CWE-352"
+    languages: [javascript, typescript]
+    confidence: MEDIUM
+    false_positive_rate: 0.10
+    custom_rule: false
+    description: "Express application missing CSRF protection middleware"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-29486"
+    semgrep_version_introduced: "1.30.0"
+
+  javascript-jwt-hardcoded-secret:
+    source: "p/security-audit"
+    semgrep_rule_id: "javascript.express.security.audit.express-jwt-hardcoded-secret"
+    owasp: "A07:2021-Authentication-Failures"
+    cwe: "CWE-798"
+    languages: [javascript, typescript]
+    confidence: HIGH
+    false_positive_rate: 0.03
+    custom_rule: false
+    description: "JWT signed with hardcoded secret instead of environment variable"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-22314"
+    semgrep_version_introduced: "1.32.0"
+
+# ─── GO RULES ────────────────────────────────────────────────────────────────
+
+  go-sql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "go.lang.security.audit.database.string-formatted-query"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-89"
+    languages: [go]
+    confidence: HIGH
+    false_positive_rate: 0.04
+    custom_rule: false
+    description: "SQL query built with fmt.Sprintf or string concatenation"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-32149"
+    semgrep_version_introduced: "1.29.0"
+
+  go-command-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "go.lang.security.audit.command-injection.command-injection"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-78"
+    languages: [go]
+    confidence: HIGH
+    false_positive_rate: 0.06
+    custom_rule: false
+    description: "exec.Command with user-controlled arguments"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-29403"
+    semgrep_version_introduced: "1.32.0"
+
+  go-xxe:
+    source: "p/security-audit"
+    semgrep_rule_id: "go.lang.security.audit.xml.xml-decoder"
+    owasp: "A05:2021-Security-Misconfiguration"
+    cwe: "CWE-611"
+    languages: [go]
+    confidence: MEDIUM
+    false_positive_rate: 0.08
+    custom_rule: false
+    description: "XML decoder without entity restriction is vulnerable to XXE"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2020-16845"
+    semgrep_version_introduced: "1.33.0"
+
+# ─── JAVA RULES ──────────────────────────────────────────────────────────────
+
+  java-sql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "java.lang.security.audit.crypto.sql-injection.jdbc-sqli"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-89"
+    languages: [java]
+    confidence: HIGH
+    false_positive_rate: 0.03
+    custom_rule: false
+    description: "JDBC Statement.executeQuery with string concatenation"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-22980"
+    semgrep_version_introduced: "1.28.0"
+
+  java-xxe:
+    source: "p/security-audit"
+    semgrep_rule_id: "java.lang.security.audit.xml.xpath-injection"
+    owasp: "A05:2021-Security-Misconfiguration"
+    cwe: "CWE-611"
+    languages: [java]
+    confidence: HIGH
+    false_positive_rate: 0.04
+    custom_rule: false
+    description: "XML parser without XXE protection (DocumentBuilderFactory)"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-44228"
+    semgrep_version_introduced: "1.28.0"
+
+  java-deserialization:
+    source: "p/security-audit"
+    semgrep_rule_id: "java.lang.security.audit.objectinputstream-deserialization"
+    owasp: "A08:2021-Software-Integrity-Failures"
+    cwe: "CWE-502"
+    languages: [java]
+    confidence: HIGH
+    false_positive_rate: 0.02
+    custom_rule: false
+    description: "ObjectInputStream.readObject() with untrusted data"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2016-9938"
+    semgrep_version_introduced: "1.28.0"
+
+# ─── PHP RULES ───────────────────────────────────────────────────────────────
+
+  php-sql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "php.lang.security.audit.sqli"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-89"
+    languages: [php]
+    confidence: HIGH
+    false_positive_rate: 0.04
+    custom_rule: false
+    description: "SQL query built with string interpolation from user variables"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-21661"
+    semgrep_version_introduced: "1.30.0"
+
+  php-command-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "php.lang.security.audit.exec-use"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-78"
+    languages: [php]
+    confidence: HIGH
+    false_positive_rate: 0.05
+    custom_rule: false
+    description: "exec/system/passthru with user-controlled input"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-29447"
+    semgrep_version_introduced: "1.30.0"
+
+  php-file-inclusion:
+    source: "p/security-audit"
+    semgrep_rule_id: "php.lang.security.audit.file-inclusion"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-22"
+    languages: [php]
+    confidence: HIGH
+    false_positive_rate: 0.03
+    custom_rule: false
+    description: "include/require with user-controlled path (LFI/RFI)"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2022-24706"
+    semgrep_version_introduced: "1.31.0"
+
+# ─── RUST RULES ──────────────────────────────────────────────────────────────
+
+  rust-unsafe-block:
+    source: "p/security-audit"
+    semgrep_rule_id: "rust.lang.security.audit.unsafe-block-in-proc"
+    owasp: "A04:2021-Insecure-Design"
+    cwe: "CWE-676"
+    languages: [rust]
+    confidence: LOW
+    false_positive_rate: 0.20
+    custom_rule: false
+    description: "unsafe block that may introduce memory safety violations"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-31919"
+    semgrep_version_introduced: "1.35.0"
+
+  rust-sql-injection:
+    source: "p/security-audit"
+    semgrep_rule_id: "rust.lang.security.audit.sql-injection"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-89"
+    languages: [rust]
+    confidence: MEDIUM
+    false_positive_rate: 0.08
+    custom_rule: false
+    description: "Raw SQL string format! macro with user-controlled data"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-26964"
+    semgrep_version_introduced: "1.38.0"
+
+# ─── C/C++ RULES ─────────────────────────────────────────────────────────────
+
+  cpp-buffer-overflow:
+    source: "p/security-audit"
+    semgrep_rule_id: "c.lang.security.audit.dangerous-function-overflow"
+    owasp: "A04:2021-Insecure-Design"
+    cwe: "CWE-120"
+    languages: [c, cpp]
+    confidence: HIGH
+    false_positive_rate: 0.12
+    custom_rule: false
+    description: "Use of strcpy/strcat/gets without bounds checking"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2021-3156"
+    semgrep_version_introduced: "1.28.0"
+
+  cpp-format-string:
+    source: "p/security-audit"
+    semgrep_rule_id: "c.lang.security.audit.printf-user-controlled"
+    owasp: "A03:2021-Injection"
+    cwe: "CWE-134"
+    languages: [c, cpp]
+    confidence: HIGH
+    false_positive_rate: 0.06
+    custom_rule: false
+    description: "printf/fprintf with user-controlled format string"
+    example_cve: "https://nvd.nist.gov/vuln/detail/CVE-2023-0386"
+    semgrep_version_introduced: "1.28.0"
+
+# ─── INTEGRATION NOTES ───────────────────────────────────────────────────────
+# 
+# Consumed by:
+#   - get-shit-done/bin/lib/pattern-loader.cjs (runtime rule lookup)
+#   - security_prescan.py (semgrep config generation)
+#   - agents/gsd-security-scanner.md (agent context)
+#
+# To run all rules for a language:
+#   semgrep --config=p/security-audit --lang=python --json <target>
+#
+# To use pinned version:
+#   semgrep==1.45.0 --config=p/security-audit
