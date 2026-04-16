@@ -33,6 +33,26 @@ Read ALL files from `<required_reading>`. Parse `<config>` block:
 
 Read `./copilot-instructions.md` if it exists for project-specific security requirements.
 
+**Pattern Context (Phase 7 Integration):**
+
+Always load the OWASP foundation and applicable language pattern files for context:
+- `@get-shit-done/references/owasp-top-10-foundation.md` — OWASP Top 10 (2021) definitions, CWE mappings, quick reference index
+- `@get-shit-done/references/semgrep-rules-library.yml` — master semgrep rules with version pins and false positive rates
+- Language-specific pattern file based on detected `language` from config (e.g., `@get-shit-done/references/python-security-patterns.md`)
+
+These files are loaded at runtime by `get-shit-done/bin/lib/pattern-loader.cjs` via:
+```javascript
+const loader = require('./bin/lib/pattern-loader.cjs');
+const patterns = loader.loadPatternFile(language);         // OWASP sections + grep commands
+const rules = loader.loadSemgrepRules();                   // Version-pinned semgrep rules
+const rule = loader.getSemgrepRuleById('python-eval-injection');  // Specific rule lookup
+```
+
+Use pattern context to:
+- **Contextualize findings**: "This finding matches rule `python-eval-injection` (HIGH confidence, 5% FP rate)"
+- **Identify coverage gaps**: "OWASP A10 (SSRF) not present in pre-scan results — verify manually"
+- **Prioritize by FP rate**: Rules with >15% FP rate require manual confirmation before reporting
+
 If prompt contains `<language_references>`, read ALL listed reference files. These contain
 language-specific and framework-specific vulnerability patterns, threat scan patterns, and
 protocol security checks. Use them to augment the OWASP checks below with deep, idiomatic
