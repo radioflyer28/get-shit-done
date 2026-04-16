@@ -35,6 +35,7 @@ const CODEX_AGENT_SANDBOX = {
   'gsd-integration-checker': 'read-only',
   'gsd-security-scanner': 'workspace-write',
   'gsd-threat-scanner': 'read-only',
+  'gsd-skill-scaffolder': 'workspace-write',
 };
 
 // Copilot tool name mapping — Claude Code tools to GitHub Copilot tools

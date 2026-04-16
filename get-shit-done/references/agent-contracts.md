@@ -34,6 +34,7 @@ This doc describes what IS, not what should be. Casing inconsistencies are docum
 | gsd-advisor-researcher | Advisory research | No marker (utility agent) |
 | gsd-user-profiler | User profiling | No marker (returns JSON in analysis tags) |
 | gsd-intel-updater | Codebase intelligence analysis | `## INTEL UPDATE COMPLETE`, `## INTEL UPDATE FAILED` |
+| gsd-skill-scaffolder | Skill scaffold generation — generates command, workflow, and agent files from name+description+type | `## SCAFFOLD COMPLETE`, `## SCAFFOLD BLOCKED` |
 
 ## Marker Rules
 
