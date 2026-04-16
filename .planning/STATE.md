@@ -5,11 +5,11 @@ milestone_name: Security & Threat Scanner Tooling
 status: In Progress
 last_updated: "2026-04-15T00:00:00.000Z"
 progress:
-  total_phases: 8
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
-  percent: 12
+  total_phases: 9
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
+  percent: 22
 ---
 
 # GSD State
@@ -26,6 +26,7 @@ progress:
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
 | 08 | Threat Adversarial Pattern Library | ✅ Complete | 1/1 |
+| 09 | Git Forensics Agent | ✅ Complete | 1/1 |
 
 ## Completed Milestones
 
@@ -42,6 +43,8 @@ progress:
 | Pre-scan orchestrator as v1.1 foundation | v1.1 | Solves token cost and coverage holistically |
 | Deterministic infrastructure over LLM variance | v1.1 | Mechanical scanning must be reproducible |
 | Semgrep + community rules | v1.1 | Leverage battle-tested rulesets vs hand-crafted patterns |
+| XML isolation tags for commit data | v1.1 Phase 9 | Prevent prompt injection when GIT-FORENSICS.md passed to AI agent |
+| Median timezone baseline for anomaly detection | v1.1 Phase 9 | Median resists outlier influence better than mean |
 | Audit before scaffold/tune | Phases 2-3 | Auditor must exist for scaffolder validation |
 | Semgrep YAML as pattern source of truth | v1.1 Phase 8 | Agent reasons about findings, does not re-scan |
 | shell/powershell security refs created from scratch | v1.1 Phase 8 | Files did not pre-exist |
