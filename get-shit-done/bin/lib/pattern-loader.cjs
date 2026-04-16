@@ -20,9 +20,9 @@ const OWASP_FOUNDATION_PATH = path.join(REFERENCES_DIR, 'owasp-top-10-foundation
 
 // Language alias normalization
 const LANGUAGE_ALIASES = {
-  js: 'javascript',
-  ts: 'typescript',
-  javascript: 'javascript',
+  js: 'javascript-typescript',
+  ts: 'javascript-typescript',
+  javascript: 'javascript-typescript',
   typescript: 'javascript-typescript',
   'javascript-typescript': 'javascript-typescript',
   py: 'python',
@@ -234,11 +234,14 @@ function loadPatternFile(language) {
     return null;
   }
 
-  const result = {
-    language: normalized,
-    file_path: filePath,
-    owasp_patterns: _extractOwaspSections(content),
-    quick_reference: _extractQuickReference(content),
+// Normalize line endings for consistent parsing
+    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    const result = {
+      language: normalized,
+      file_path: filePath,
+      owasp_patterns: _extractOwaspSections(normalizedContent),
+      quick_reference: _extractQuickReference(normalizedContent),
     raw: content,
   };
 
