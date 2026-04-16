@@ -5,7 +5,8 @@
  * Phase 8, Plan 1 — THR-01 to THR-05
  */
 
-const assert = require("assert");
+const { describe, it, before } = require("node:test");
+const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const { execSync, spawnSync } = require("child_process");
@@ -52,35 +53,35 @@ describe("threat-patterns.yml — structure validation", () => {
   let ruleIds;
   let ruleMetadata;
 
-  before(() => {
+  before(async () => {
     assert.ok(fs.existsSync(RULE_FILE), `Rule file not found: ${RULE_FILE}`);
     content = fs.readFileSync(RULE_FILE, "utf8");
     ruleIds = parseRuleIds(content);
     ruleMetadata = parseRuleMetadata(content);
   });
 
-  it("file exists and is non-empty", () => {
+  it("file exists and is non-empty", (_t) => {
     assert.ok(content.length > 100, "Rule file is too short");
   });
 
-  it("file starts with 'rules:' block", () => {
+  it("file starts with 'rules:' block", (_t) => {
     assert.ok(content.includes("rules:"), "Missing top-level 'rules:' key");
   });
 
-  it(`has at least ${MIN_RULE_COUNT} rules`, () => {
+  it(`has at least ${MIN_RULE_COUNT} rules`, (_t) => {
     assert.ok(
       ruleIds.length >= MIN_RULE_COUNT,
       `Expected >= ${MIN_RULE_COUNT} rules, found ${ruleIds.length}: ${ruleIds.join(", ")}`
     );
   });
 
-  it("all rule IDs follow thr-<category>-<name> convention", () => {
+  it("all rule IDs follow thr-<category>-<name> convention", (_t) => {
     for (const id of ruleIds) {
       assert.ok(id.startsWith("thr-"), `Rule ID '${id}' does not start with 'thr-'`);
     }
   });
 
-  it("all rules have required metadata fields (category, severity, seed)", () => {
+  it("all rules have required metadata fields (category, severity, seed)", (_t) => {
     for (const rule of ruleMetadata) {
       for (const field of REQUIRED_FIELDS) {
         const value = rule[field];
@@ -89,7 +90,7 @@ describe("threat-patterns.yml — structure validation", () => {
     }
   });
 
-  it("all metadata.category values are valid", () => {
+  it("all metadata.category values are valid", (_t) => {
     for (const rule of ruleMetadata) {
       assert.ok(
         REQUIRED_CATEGORIES.includes(rule.category),
@@ -98,40 +99,34 @@ describe("threat-patterns.yml — structure validation", () => {
     }
   });
 
-  it("all metadata.seed values reference SEED-008", () => {
+  it("all metadata.seed values reference SEED-008", (_t) => {
     for (const rule of ruleMetadata) {
       assert.strictEqual(rule.seed, "SEED-008", `Rule '${rule.id}' has wrong seed: '${rule.seed}'`);
     }
   });
 
-  it("each required category has at least 2 rules", () => {
+  it("each required category has at least 2 rules", (_t) => {
     for (const cat of REQUIRED_CATEGORIES) {
       const count = ruleMetadata.filter((r) => r.category === cat).length;
       assert.ok(count >= 2, `Category '${cat}' has only ${count} rules (need >= 2)`);
     }
   });
 
-  it("has at least 3 rules in category: supply_chain", () => {
+  it("has at least 3 rules in category: supply_chain", (_t) => {
     const count = ruleMetadata.filter((r) => r.category === "supply_chain").length;
     assert.ok(count >= 3, `Expected >= 3 supply_chain rules, found ${count}`);
   });
 
-  it("has at least 3 rules in category: obfuscation", () => {
+  it("has at least 3 rules in category: obfuscation", (_t) => {
     const count = ruleMetadata.filter((r) => r.category === "obfuscation").length;
     assert.ok(count >= 3, `Expected >= 3 obfuscation rules, found ${count}`);
   });
 });
 
-describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", function () {
-  this.timeout(60000);
+describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", () => {
+  const SKIP = !semgrepAvailable();
 
-  before(function () {
-    if (!semgrepAvailable()) {
-      this.skip(); // semgrep not installed — skip semgrep-dependent tests
-    }
-  });
-
-  it("passes semgrep --validate", () => {
+  it("passes semgrep --validate", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const result = spawnSync(
       "semgrep",
       ["--validate", "--config", RULE_FILE],
@@ -144,7 +139,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("malicious-base64-eval.js triggers obfuscation rules", () => {
+  it("malicious-base64-eval.js triggers obfuscation rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "malicious-base64-eval.js");
     const result = spawnSync(
       "semgrep",
@@ -159,7 +154,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("benign-base64.js produces 0 findings from obfuscation rules", () => {
+  it("benign-base64.js produces 0 findings from obfuscation rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "benign-base64.js");
     const result = spawnSync(
       "semgrep",
@@ -177,7 +172,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("malicious-reverse-shell.py triggers backdoor rules", () => {
+  it("malicious-reverse-shell.py triggers backdoor rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "malicious-reverse-shell.py");
     const result = spawnSync(
       "semgrep",
@@ -194,7 +189,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("benign-subprocess.py produces 0 backdoor findings", () => {
+  it("benign-subprocess.py produces 0 backdoor findings", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "benign-subprocess.py");
     const result = spawnSync(
       "semgrep",
@@ -212,7 +207,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("malicious-setup-cmdclass.py triggers supply_chain rules", () => {
+  it("malicious-setup-cmdclass.py triggers supply_chain rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "malicious-setup-cmdclass.py");
     const result = spawnSync(
       "semgrep",
@@ -229,7 +224,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("malicious-osint-harvest.py triggers osint rules", () => {
+  it("malicious-osint-harvest.py triggers osint rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "malicious-osint-harvest.py");
     const result = spawnSync(
       "semgrep",
@@ -246,7 +241,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("benign-env-access.py produces 0 osint findings", () => {
+  it("benign-env-access.py produces 0 osint findings", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "benign-env-access.py");
     const result = spawnSync(
       "semgrep",
@@ -264,7 +259,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("malicious-logic-bomb.js triggers logic_bomb rules", () => {
+  it("malicious-logic-bomb.js triggers logic_bomb rules", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const fixture = path.join(FIXTURES_DIR, "malicious-logic-bomb.js");
     const result = spawnSync(
       "semgrep",
@@ -281,7 +276,7 @@ describe("threat-patterns.yml — semgrep validation (requires semgrep CLI)", fu
     );
   });
 
-  it("all findings from malicious fixtures have required metadata fields", () => {
+  it("all findings from malicious fixtures have required metadata fields", { skip: SKIP ? "semgrep not installed" : false }, (_t) => {
     const maliciousFixtures = [
       "malicious-base64-eval.js",
       "malicious-reverse-shell.py",
@@ -328,7 +323,7 @@ describe("threat-patterns.yml — fixture file existence", () => {
   ];
 
   for (const fixture of expectedFixtures) {
-    it(`fixture exists: ${fixture}`, () => {
+    it(`fixture exists: ${fixture}`, (_t) => {
       const p = path.join(FIXTURES_DIR, fixture);
       assert.ok(fs.existsSync(p), `Missing fixture: ${p}`);
     });

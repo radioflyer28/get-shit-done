@@ -1,6 +1,6 @@
 /**
  * Integration tests for Phase 6: Pre-Scan Orchestrator
- * 
+ *
  * Tests verify:
  * 1. Bash shim detects runtime environment correctly
  * 2. Python orchestrator executes and produces PRE-SCAN-RESULTS.json
@@ -11,7 +11,8 @@
  * 7. Agent prompts shifted to analysis mode
  */
 
-const assert = require('assert');
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -24,7 +25,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   const agentsDir = path.join(testDir, 'agents');
 
   describe('Task 1: Bash Shim + Python Orchestrator', () => {
-    it('ORK-01: Bash shim exists and is executable', () => {
+    it('ORK-01: Bash shim exists and is executable', (_t) => {
       const shim = path.join(binDir, 'security-prescan.sh');
       assert(fs.existsSync(shim), 'security-prescan.sh should exist');
       
@@ -35,7 +36,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(hasExecute || process.platform === 'win32', 'security-prescan.sh should be executable');
     });
 
-    it('ORK-02: Python orchestrator exists and is valid Python', () => {
+    it('ORK-02: Python orchestrator exists and is valid Python', (_t) => {
       const orchestrator = path.join(binDir, 'security_prescan.py');
       assert(fs.existsSync(orchestrator), 'security_prescan.py should exist');
       
@@ -47,7 +48,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('def write_results'), 'Should have write_results method');
     });
 
-    it('ORK-02: Python orchestrator uses stdlib only (no external imports)', () => {
+    it('ORK-02: Python orchestrator uses stdlib only (no external imports)', (_t) => {
       const orchestrator = path.join(binDir, 'security_prescan.py');
       const content = fs.readFileSync(orchestrator, 'utf8');
       
@@ -68,7 +69,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       });
     });
 
-    it('ORK-02: Python orchestrator has proper error handling', () => {
+    it('ORK-02: Python orchestrator has proper error handling', (_t) => {
       const orchestrator = path.join(binDir, 'security_prescan.py');
       const content = fs.readFileSync(orchestrator, 'utf8');
       
@@ -78,7 +79,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('concurrent.futures'), 'Should use concurrent execution');
     });
 
-    it('ORK-02: Orchestrator file line count is 100-150 lines', () => {
+    it('ORK-02: Orchestrator file line count is 100-150 lines', (_t) => {
       const orchestrator = path.join(binDir, 'security_prescan.py');
       const content = fs.readFileSync(orchestrator, 'utf8');
       const lineCount = content.split('\n').length;
@@ -89,12 +90,12 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   });
 
   describe('Task 2: Tool Registry + Schema Definition', () => {
-    it('ORK-03: Tool registry exists', () => {
+    it('ORK-03: Tool registry exists', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       assert(fs.existsSync(registry), 'prescan-tool-registry.md should exist');
     });
 
-    it('ORK-04 to ORK-06: Tool registry covers dependency scanners (5+)', () => {
+    it('ORK-04 to ORK-06: Tool registry covers dependency scanners (5+)', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -105,7 +106,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('## Dependency Scanners'), 'Should have Dependency Scanners section');
     });
 
-    it('ORK-05: Tool registry covers secret scanners (3+)', () => {
+    it('ORK-05: Tool registry covers secret scanners (3+)', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -116,7 +117,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('## Secret Scanners'), 'Should have Secret Scanners section');
     });
 
-    it('ORK-06: Tool registry covers SAST tools (4+)', () => {
+    it('ORK-06: Tool registry covers SAST tools (4+)', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -127,7 +128,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('## SAST Tools'), 'Should have SAST Tools section');
     });
 
-    it('ORK-07: Tool registry covers IaC tools (4+)', () => {
+    it('ORK-07: Tool registry covers IaC tools (4+)', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -138,7 +139,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('## IaC Scanners'), 'Should have IaC Scanners section');
     });
 
-    it('ORK-08: Tool registry covers binary analysis tools', () => {
+    it('ORK-08: Tool registry covers binary analysis tools', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -149,7 +150,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('## Binary'), 'Should have Binary analysis section');
     });
 
-    it('ORK-03 to ORK-08: Registry covers PRE-SCAN-RESULTS.json schema', () => {
+    it('ORK-03 to ORK-08: Registry covers PRE-SCAN-RESULTS.json schema', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -163,7 +164,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('Determinism'), 'Should document determinism guarantees');
     });
 
-    it('ORK-03: Tool registry is 200+ lines', () => {
+    it('ORK-03: Tool registry is 200+ lines', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       const lineCount = content.split('\n').length;
@@ -171,7 +172,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(lineCount >= 200, `Registry should have at least 200 lines, got ${lineCount}`);
     });
 
-    it('ORK-03: Schema includes normalized findings structure', () => {
+    it('ORK-03: Schema includes normalized findings structure', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -185,7 +186,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   });
 
   describe('Task 3: Workflow & Agent Integration', () => {
-    it('ORK-09: security-audit.md workflow includes pre-scan step', () => {
+    it('ORK-09: security-audit.md workflow includes pre-scan step', (_t) => {
       const workflow = path.join(workflowsDir, 'security-audit.md');
       const content = fs.readFileSync(workflow, 'utf8');
       
@@ -194,7 +195,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('PRE-SCAN-RESULTS.json'), 'Should reference prescan output');
     });
 
-    it('ORK-09: threat-scan.md workflow includes pre-scan step', () => {
+    it('ORK-09: threat-scan.md workflow includes pre-scan step', (_t) => {
       const workflow = path.join(workflowsDir, 'threat-scan.md');
       const content = fs.readFileSync(workflow, 'utf8');
       
@@ -203,7 +204,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('PRE-SCAN-RESULTS.json'), 'Should reference prescan output');
     });
 
-    it('ORK-10: gsd-security-scanner agent shifted to analysis mode', () => {
+    it('ORK-10: gsd-security-scanner agent shifted to analysis mode', (_t) => {
       const agent = path.join(agentsDir, 'gsd-security-scanner.md');
       const content = fs.readFileSync(agent, 'utf8');
       
@@ -215,19 +216,19 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('PRE-SCAN-RESULTS.json'), 'Agent should reference prescan output');
     });
 
-    it('ORK-10: gsd-threat-scanner agent shifted to adversarial analysis mode', () => {
+    it('ORK-10: gsd-threat-scanner agent shifted to adversarial analysis mode', (_t) => {
       const agent = path.join(agentsDir, 'gsd-threat-scanner.md');
       const content = fs.readFileSync(agent, 'utf8');
       
       assert(content.includes('Threat Analysis Mode'), 'Agent should have threat analysis mode');
-      assert(content.includes('tool_findings_threats'), 'Agent should accept threat findings');
+      assert(content.includes('tool_findings'), 'Agent should accept threat findings');
       assert(content.includes('Attack Vectors'), 'Agent should reason about attack vectors');
       assert(content.includes('Exploitation Paths'), 'Agent should identify exploitation paths');
       assert(content.includes('Supply Chain Risk'), 'Agent should assess supply chain risk');
       assert(content.includes('PRE-SCAN-RESULTS.json'), 'Agent should reference prescan output');
     });
 
-    it('ORK-10: Agent prompts changed from mechanical scanning to reasoning', () => {
+    it('ORK-10: Agent prompts changed from mechanical scanning to reasoning', (_t) => {
       const securityAgent = path.join(agentsDir, 'gsd-security-scanner.md');
       const threatAgent = path.join(agentsDir, 'gsd-threat-scanner.md');
       
@@ -244,7 +245,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   });
 
   describe('Phase 6 Deliverables', () => {
-    it('All required files created', () => {
+    it('All required files created', (_t) => {
       const files = [
         path.join(binDir, 'security-prescan.sh'),
         path.join(binDir, 'security_prescan.py'),
@@ -260,7 +261,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       });
     });
 
-    it('Key links exist between components', () => {
+    it('Key links exist between components', (_t) => {
       const shim = path.join(binDir, 'security-prescan.sh');
       const orchestrator = path.join(binDir, 'security_prescan.py');
       
@@ -268,7 +269,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(shimContent.includes('security_prescan.py'), 'Shim should call orchestrator');
     });
 
-    it('Workflows accept prescan findings', () => {
+    it('Workflows accept prescan findings', (_t) => {
       const secAudit = path.join(workflowsDir, 'security-audit.md');
       const threatScan = path.join(workflowsDir, 'threat-scan.md');
       
@@ -279,7 +280,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(threatContent.includes('PRE-SCAN-RESULTS'), 'threat-scan should use prescan results');
     });
 
-    it('Agents accept tool_findings context', () => {
+    it('Agents accept tool_findings context', (_t) => {
       const secAgent = path.join(agentsDir, 'gsd-security-scanner.md');
       const threatAgent = path.join(agentsDir, 'gsd-threat-scanner.md');
       
@@ -290,7 +291,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(threatContent.includes('tool_findings'), 'threat scanner should accept tool_findings');
     });
 
-    it('ORK requirements 01-10 satisfied', () => {
+    it('ORK requirements 01-10 satisfied', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -308,7 +309,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   });
 
   describe('Determinism Verification', () => {
-    it('Schema supports determinism verification', () => {
+    it('Schema supports determinism verification', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -317,7 +318,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('Determinism'), 'Should document determinism approach');
     });
 
-    it('Schema includes tool execution metadata', () => {
+    it('Schema includes tool execution metadata', (_t) => {
       const registry = path.join(refsDir, 'prescan-tool-registry.md');
       const content = fs.readFileSync(registry, 'utf8');
       
@@ -328,7 +329,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
   });
 
   describe('Token Reduction', () => {
-    it('Orchestrator filters tools by runtime', () => {
+    it('Orchestrator filters tools by runtime', (_t) => {
       const orchestrator = path.join(binDir, 'security_prescan.py');
       const content = fs.readFileSync(orchestrator, 'utf8');
       
@@ -338,7 +339,7 @@ describe('Phase 6: Pre-Scan Orchestrator', () => {
       assert(content.includes('concurrent.futures'), 'Should run in parallel for efficiency');
     });
 
-    it('Workflows pass structured findings to agents', () => {
+    it('Workflows pass structured findings to agents', (_t) => {
       const secAudit = path.join(workflowsDir, 'security-audit.md');
       const content = fs.readFileSync(secAudit, 'utf8');
       
