@@ -63,6 +63,36 @@ obfuscation, osint — all from deterministic semgrep rules. The agent's role is
 context and adversarial intent analysis to these structured findings.
 </step>
 
+<step name="git_forensics">Git history forensics (SEED-009) — runs if target is a git repository.
+
+```bash
+# Git Forensics step (SEED-009) — runs if target is a git repo
+GIT_FORENSICS_FINDINGS=""
+if [ -d "${ABS_TARGET}/.git" ] || git -C "${ABS_TARGET}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Running git forensics analysis..."
+  FORENSICS_SCRIPT="$(dirname "$0")/../bin/git_forensics.sh"
+  if [ -x "$FORENSICS_SCRIPT" ] || [ -f "$FORENSICS_SCRIPT" ]; then
+    bash "$FORENSICS_SCRIPT" "${ABS_TARGET}" 2>&1
+    if [ -f "${ABS_TARGET}/GIT-FORENSICS.md" ]; then
+      GIT_FORENSICS_FINDINGS=$(cat "${ABS_TARGET}/GIT-FORENSICS.md")
+      echo "✓ Git forensics complete"
+    else
+      echo "⚠ git forensics did not produce a report — skipping"
+    fi
+  else
+    echo "⚠ git_forensics.sh not found — skipping git forensics"
+  fi
+else
+  echo "⚠ Target is not a git repository — skipping git forensics"
+fi
+```
+
+**Forensics Result:** Timeline-aware analysis of git history: binary blobs, force-push rewrites,
+.gitattributes execution vectors, and author anomalies. Covers supply chain indicators that
+static code analysis misses (bulk-injected commits, one-time contributor adding hooks, binaries
+encoded in history). Findings are passed to the agent as `<git_forensics>` in `<tool_findings>`.
+</step>
+
 <step name="initialize">
 Parse arguments:
 
@@ -365,6 +395,9 @@ Task(
     "  \"prescan_full\": ${PRESCAN_FINDINGS}\n" +
     "}\n" +
     "</tool_findings>\n" +
+    "<git_forensics>\n" +
+    "${GIT_FORENSICS_FINDINGS}\n" +
+    "</git_forensics>\n" +
     "<config>\n" +
     "depth: ${DEPTH}\n" +
     "focus: ${FOCUS}\n" +
@@ -406,6 +439,9 @@ for i in 1..N:
       "<required_reading>\n${COMMON_FILES}\n${SOURCE_CHUNK_i}</required_reading>\n" +
       "<language_references>\n${LANG_REFS}${FRAMEWORK_REFS}</language_references>\n" +
       "${MAPPER_CONTEXT}" +
+      "<git_forensics>\n" +
+      "${GIT_FORENSICS_FINDINGS}\n" +
+      "</git_forensics>\n" +
       "<config>\n" +
       "depth: ${DEPTH}\n" +
       "focus: ${FOCUS}\n" +
