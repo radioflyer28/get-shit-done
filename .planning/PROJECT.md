@@ -5,8 +5,105 @@
 GSD is a meta-prompting framework for AI agents — tools, workflows, and skills that enable coordinated multi-agent work on complex software projects. This project builds three primary capability areas:
 
 1. **Skill Lifecycle Tooling** (v1.0 ✅) — Create, audit, and tune skills through guided workflows
-2. **Security & Threat Scanner Tooling** (v1.1 🔨) — Deterministic pre-scan orchestrator, reference-based pattern matching, git forensics, and operational CI integration
+2. **Security & Threat Scanner Tooling** (v1.1 ✅) — Deterministic pre-scan orchestrator, reference-based pattern matching, git forensics, and operational CI integration
 3. **Autonomous Skills & Ecosystem** (v2.0 🔮) — Autoresearch-driven improvement, marketplace, and external integrations
+
+## Core Values
+
+- **Quality by design:** Every GSD skill meets a consistent quality bar (SMART-compliant, structurally sound, improvable)
+- **Security first:** Code auditing and threat detection are built-in, not bolted-on
+- **Operational readiness:** Tools integrate into CI, dashboards, and production workflows
+
+## Current State: v1.1 Shipped (2026-04-16)
+
+✅ **All v1.1 features shipped and validated (2026-04-16)**
+
+Security and threat scanning is now production-grade:
+
+- ✅ Pre-scan orchestrator (`security-prescan.sh` + `security_prescan.py`) — Hybrid bash/Python offloads ~60% of mechanical scanning (SEED-006)
+- ✅ 7 language pattern files with OWASP Top 10 + executable semgrep/grep rules (SEED-007)
+- ✅ 25-rule adversarial semgrep library — backdoor, exfil, supply_chain, logic_bomb, obfuscation, osint (SEED-008)
+- ✅ Git forensics engine — binary blob detection, reflog analysis, author anomalies, `.gitattributes` inspection (SEED-009)
+- ✅ Operational stack — CI mode, baseline management, supply chain intelligence (OSV/deps.dev/GitHub Advisory), SBOM generation, quarantine protocol (SEED-010)
+
+**Metrics:**
+- 5 phases, 8 plans, 22/22 requirements satisfied
+- ~237 new integration tests
+- Shipped: 2026-04-16
+
+## Next Milestone: v1.2 (Planning)
+
+**Goal:** Performance optimization and autonomous foundation research
+
+**Target features (TBD):**
+- Autonomous skill tuning research (SEED-004)
+- External SBOM repository integration
+- Multi-repo scanning orchestration
+- Telemetry-driven pattern quality scoring
+
+## Requirements
+
+### Validated
+
+- ✓ Guided skill scaffolding via `/gsd-build-skill` (SEED-001) — v1.0
+- ✓ Skill quality auditing via `/gsd-audit-skill` (SEED-003) — v1.0
+- ✓ Human-in-the-loop skill tuning via `/gsd-tune-skill` (SEED-002) — v1.0
+- ✓ Shared SMART criteria rubric (`references/skill-smart-criteria.md`) — v1.0
+- ✓ Pre-scan orchestrator (bash/Python hybrid) (SEED-006) — v1.1
+- ✓ Security reference sub-skills — executable patterns (SEED-007) — v1.1
+- ✓ Adversarial pattern library — threat detection semgrep rules (SEED-008) — v1.1
+- ✓ Git forensics agent — supply chain analysis (SEED-009) — v1.1
+- ✓ Scanner operational excellence — CI, baselines, quarantine, SBOM (SEED-010) — v1.1
+
+### Active (v1.2 Planning)
+
+- [ ] Autonomous skill tuning (SEED-004) — research phase
+- [ ] External SBOM repository integration
+- [ ] Multi-repo scanning orchestration
+
+### Future (v2.0+)
+
+- [ ] Skill marketplace and registry
+- [ ] Performance optimization for large scale operations
+- [ ] Autonomous scanner improvement driven by telemetry
+
+### Out of Scope
+
+- Autonomous scanner improvement in v1.x — focus on deterministic infrastructure first
+- Supply chain intelligence beyond API integration — external dependency tracking in v1.2
+- Real-time monitoring dashboards — covered in v1.2+ with telemetry backend
+
+## Context
+
+- **v1.0 (shipped):** Built skill lifecycle tooling (build/audit/tune) — 5 phases, 13 plans
+- **v1.1 (shipped):** Security & threat scanning infrastructure — 5 phases, 8 plans, ~237 tests
+- **v1.2 (next):** Performance and autonomous research foundation
+- **Scanner architecture:** Pre-scan → Pattern matching → Forensics → Agent reasoning → Operational output
+- **Design principle:** Agents reason about findings, tools do the mechanical scanning
+
+## Constraints
+
+- **Determinism required:** Pre-scan output must be reproducible — no LLM variance in mechanical scans
+- **Tool coverage:** Support major ecosystems (Node/npm, Python/pip, Go, Rust, etc.) and scan types (deps, secrets, SAST, IaC, binary)
+- **Token efficiency:** Offload 60%+ of mechanical work from LLM to local tools before agent sees data
+- **Backward compatibility:** Don't break existing `/gsd-security-audit` and `/gsd-threat-scan` — extend them with pre-scan layer
+- **Operational readiness:** CI integration, baseline management, and quarantine workflows must be production-grade from day one
+
+## Key Decisions
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Pre-scan orchestrator as v1.1 foundation | Solves token cost and coverage problems holistically | ✓ Shipped — significant agent cost reduction |
+| Deterministic infrastructure over LLM variance | Mechanical scanning must be reproducible | ✓ All scans produce identical outputs for same input |
+| Semgrep + community rules | Leverage battle-tested, maintained ruleset rather than hand-crafted patterns | ✓ 25 adversarial + 27 OWASP rules from semgrep.dev |
+| Git forensics as first-class gate | Supply chain attacks require deep history analysis that surface-level git commands miss | ✓ Shipped — reflog, binary blob, author anomaly detection |
+| XML isolation tags for commit data | Prevent prompt injection when GIT-FORENSICS.md passed to AI agent | ✓ All forensics output wrapped in isolation tags |
+| Operational model (CI, baselines, quarantine) | Make scanning safe for automated pipelines, not just manual audits | ✓ Shipped — CI mode, baselines, SBOM, quarantine |
+| stdlib-only for orchestrator and pattern loader | No external deps for security infrastructure | ✓ Zero new npm/pip dependencies added |
+
+---
+*Last updated: 2026-04-16 after v1.1 milestone*
+
 
 ## Core Values
 

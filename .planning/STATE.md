@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Security & Threat Scanner Tooling
-status: In Progress
-last_updated: "2026-04-15T00:00:00.000Z"
+status: Complete
+last_updated: "2026-04-16T00:00:00.000Z"
 progress:
-  total_phases: 9
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 33
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 8
+  completed_plans: 8
+  percent: 100
 ---
 
 # GSD State
@@ -18,24 +18,34 @@ progress:
 
 **Version:** v1.1
 **Name:** Security & Threat Scanner Tooling
-**Status:** In Progress
+**Status:** ✅ Complete (2026-04-16)
 **Seeds:** SEED-006, SEED-007, SEED-008, SEED-009, SEED-010
 
 ## Phase Progress
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
+| 06 | Pre-Scan Orchestrator | ✅ Complete | 1/1 |
+| 07 | Security Reference Sub-Skills | ✅ Complete | 1/1 |
 | 08 | Threat Adversarial Pattern Library | ✅ Complete | 1/1 |
 | 09 | Git Forensics Agent | ✅ Complete | 1/1 |
 | 10 | Scanner Operational Excellence | ✅ Complete | 4/4 |
 
 ## Completed Milestones
 
+✅ **v1.1: Security & Threat Scanner Tooling** (2026-04-16)
+
+- 5 phases, 8 plans, 22/22 requirements satisfied
+- ~237 new integration tests
+- Pre-scan orchestrator, adversarial pattern library, git forensics, operational stack
+
 ✅ **v1.0: Skill Lifecycle Tooling** (2026-04-16)
 
 - 5 phases, 13 plans, 33/33 requirements satisfied
 - All 52 integration tests passing
 - `/gsd-build-skill`, `/gsd-audit-skill`, `/gsd-tune-skill` shipped and validated
+
+
 
 ## Key Decisions
 

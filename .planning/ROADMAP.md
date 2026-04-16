@@ -5,95 +5,51 @@
 - ✅ **v1.0 Skill Lifecycle Tooling** — `/gsd-build-skill`, `/gsd-audit-skill`, `/gsd-tune-skill` (shipped 2026-04-16)  
   See [archived roadmap](milestones/v1.0-ROADMAP.md)
 
-- � **v1.1 Security & Threat Scanner Tooling** — Pre-scan orchestrator, pattern libraries, git forensics, CI integration (current)
-  - Phase 6: Pre-Scan Orchestrator (SEED-006)
-  - Phase 7: Security Reference Sub-Skills (SEED-007)
-  - Phase 8: Threat Adversarial Pattern Library (SEED-008)
-  - Phase 9: Git Forensics Agent (SEED-009)
-  - Phase 10: Scanner Operational Excellence (SEED-010)
+- ✅ **v1.1 Security & Threat Scanner Tooling** — Pre-scan orchestrator, pattern libraries, git forensics, CI integration (shipped 2026-04-16)  
+  See [archived roadmap](milestones/v1.1-ROADMAP.md)
 
 - 📋 **v1.2** — Performance optimization, autonomous foundation research, marketplace groundwork (planned)
 
 - 📋 **v2.0 Autonomous Skills & Ecosystem** — Autoresearch-driven skill improvement, marketplace integration (future)
 
-## Current Focus
+## Phases
 
-**v1.1 In Progress** — Security & threat scanner operationalization through deterministic infrastructure.
+<details>
+<summary>✅ v1.0 Skill Lifecycle Tooling (Phases 1–5) — SHIPPED 2026-04-16</summary>
 
-**Status:** Phase 6 complete (28/28 tests passing, all ORK requirements verified). Phase 7 planned (4 plans, all SEC requirements covered). Phase 7 execution ready.
+- [x] Phase 1: Shared Infrastructure (2/2 plans) — completed 2026-04-15
+- [x] Phase 2: Skill Auditor Core (2/2 plans) — completed 2026-04-15
+- [x] Phase 3: Auditor Extensions (3/3 plans) — completed 2026-04-16
+- [x] Phase 4: Skill Scaffolder (3/3 plans) — completed 2026-04-16
+- [x] Phase 5: Skill Tuner (3/3 plans) — completed 2026-04-16
+
+</details>
+
+<details>
+<summary>✅ v1.1 Security & Threat Scanner Tooling (Phases 6–10) — SHIPPED 2026-04-16</summary>
+
+- [x] Phase 6: Pre-Scan Orchestrator (1/1 plans) — completed 2026-04-15
+- [x] Phase 7: Security Reference Sub-Skills (1/1 plans) — completed 2026-04-16
+- [x] Phase 8: Threat Adversarial Pattern Library (1/1 plans) — completed 2026-04-16
+- [x] Phase 9: Git Forensics Agent (1/1 plans) — completed 2026-04-16
+- [x] Phase 10: Scanner Operational Excellence (4/4 plans) — completed 2026-04-16
+
+</details>
+
+### 📋 v1.2 (Planned)
+
+- [ ] Phase 11: TBD — Performance optimization and autonomous foundation research
+
 
 ## Phases in v1.1 (Planned)
 
-| Phase | Title | Goal | Requirements | Status |
-|-------|-------|------|--------------|--------|
-| 6 | Pre-Scan Orchestrator | Hybrid bash/Python layer offloads mechanical scanning | ORK-01 to ORK-10 | ✅ Complete (2026-04-15) |
-| 7 | Security Patterns | 1/1 | Complete   | 2026-04-16 |
-| 8 | Threat Patterns | Adversarial/malicious code detection ruleset | THR-01 to THR-05 | Not started |
-| 9 | Git Forensics | Supply chain attack analysis via commit history | FOR-01 to FOR-07 | Not started |
-| 10 | Scanner Operations | CI integration, baselines, quarantine, SBOM | OPS-01 to OPS-08 | Not started |
-
-
-## Phase 7: Security Patterns (Planned)
-
-**Goal:** Implement language-specific executable vulnerability rules (SEC-01 to SEC-05).
-
-**4 Plans Ready:**
-- 07-01-PLAN.md — Injection attack patterns (SQL, command, template)
-- 07-02-PLAN.md — Authentication/session vulnerability patterns
-- 07-03-PLAN.md — Cryptographic weakness patterns
-- 07-04-PLAN.md — Data exposure & storage patterns
-
-**Status:** All plans complete. Execution ready.
-
-
-## Phase 8: Threat Adversarial Pattern Library (Planned)
-
-**Goal:** Semgrep ruleset for detecting deliberately malicious code (THR-01 to THR-05).
-
-**Plans:** 1 plan
-
-Plans:
-- [ ] 08-01-PLAN.md — Full adversarial ruleset: obfuscation, C2 beacons, supply chain hooks, logic bombs + per-language threat sections + orchestrator/agent wiring
-
-**Status:** Planned. Execute after Phase 7.
-
-## Phase 9: Git Forensics Agent (Planned)
-
-**Goal:** Supply chain attack detection via deep commit history analysis (FOR-01 to FOR-07).
-
-**Plans:** 1 plan
-
-Plans:
-- [ ] 09-01-PLAN.md — Git history analysis, binary blob detection, history rewrite detection, author anomalies, GIT-FORENSICS.md output + threat-scan integration
-
-**Status:** Planned. Execute after Phase 8.
-
-## Phase 10: Scanner Operational Excellence (Planned)
-
-**Goal:** CI integration, baseline mode, supply chain intelligence, quarantine workflows, and SBOM generation for production-grade automated scanning (OPS-01 to OPS-08).
-
-**Plans:** 4 plans
-
-Plans:
-- [ ] 10-01-PLAN.md — CI mode (--ci flag) for security-audit + threat-scan; lockfile change detection via scan_ci.sh; CI_RESULTS.json output (OPS-01, OPS-07, OPS-08)
-- [ ] 10-02-PLAN.md — Baseline file support (.gsd-baseline.json); scan state tracking (.gsd-scan-state.json); delta reporting (new/resolved/accepted) (OPS-02, OPS-06)
-- [ ] 10-03-PLAN.md — Supply chain intelligence: OSV, deps.dev, GitHub Advisory APIs in parallel; SUPPLY-CHAIN-INTEL.json; wired into security-audit.md (OPS-03)
-- [ ] 10-04-PLAN.md — SBOM generation via syft/cyclonedx-cli (--sbom flag); formalized quarantine protocol with release procedure (OPS-04, OPS-05)
-
-**Status:** Planned. Execute after Phase 9.
 ## Quick Links
 
-- **v1.1 Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md)
-- **v1.1 Project Context:** [PROJECT.md](PROJECT.md)
-- **v1.1 State:** [STATE.md](STATE.md)
-- **v1.0 Archive:** [v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
-- **v1.0 Audit:** [v1.0-MILESTONE-AUDIT.md](v1.0-MILESTONE-AUDIT.md)
+- **Milestones:** [MILESTONES.md](MILESTONES.md)
+- **State:** [STATE.md](STATE.md)
+- **v1.0 Archive:** [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
+- **v1.1 Archive:** [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 ---
 
-*Roadmap updated for v1.1 milestone start (2026-04-16)*
-*Next Step: Execute Phase 7 via `/gsd-execute-phase 07` or continue planning Phase 8*
-
-
-
-
+*Updated: 2026-04-16 after v1.1 milestone completion*

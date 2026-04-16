@@ -24,16 +24,16 @@ Security and threat scanning must be operationalized through deterministic infra
 
 **Planned requirements:**
 
-- [ ] **ORK-01**: Bash shim (`security-prescan.sh`) detects runtime environment (Node, Python, Go, etc.) and invokes Python orchestrator
-- [ ] **ORK-02**: Python orchestrator (`security_prescan.py`) uses `concurrent.futures.ProcessPoolExecutor` for parallel tool execution
-- [ ] **ORK-03**: Tool registry covers dep scanners (pip-audit, npm audit, cargo audit, trivy, osv-scanner)
-- [ ] **ORK-04**: Tool registry covers secret scanners (gitleaks, trufflehog, detect-secrets)
-- [ ] **ORK-05**: Tool registry covers SAST tools (semgrep, bandit, gosec, eslint-plugin-security)
-- [ ] **ORK-06**: Tool registry covers IaC scanners (hadolint, checkov, tfsec, kube-linter)
-- [ ] **ORK-07**: Tool registry covers binary/IOC analysis (file, strings, sha256sum)
-- [ ] **ORK-08**: Pre-scan produces unified `PRE-SCAN-RESULTS.json` with normalized findings and tool metadata
-- [ ] **ORK-09**: Workflow integration: `security-audit.md` and `threat-scan.md` accept pre-scan step and pass `<tool_findings>` to agent
-- [ ] **ORK-10**: Agent prompts for `gsd-security-scanner.md` and `gsd-threat-scanner.md` shift from "scan everything" to "analyze findings + reason about business logic + triage false positives"
+- [x] **ORK-01**: Bash shim (`security-prescan.sh`) detects runtime environment (Node, Python, Go, etc.) and invokes Python orchestrator
+- [x] **ORK-02**: Python orchestrator (`security_prescan.py`) uses `concurrent.futures.ProcessPoolExecutor` for parallel tool execution
+- [x] **ORK-03**: Tool registry covers dep scanners (pip-audit, npm audit, cargo audit, trivy, osv-scanner)
+- [x] **ORK-04**: Tool registry covers secret scanners (gitleaks, trufflehog, detect-secrets)
+- [x] **ORK-05**: Tool registry covers SAST tools (semgrep, bandit, gosec, eslint-plugin-security)
+- [x] **ORK-06**: Tool registry covers IaC scanners (hadolint, checkov, tfsec, kube-linter)
+- [x] **ORK-07**: Tool registry covers binary/IOC analysis (file, strings, sha256sum)
+- [x] **ORK-08**: Pre-scan produces unified `PRE-SCAN-RESULTS.json` with normalized findings and tool metadata
+- [x] **ORK-09**: Workflow integration: `security-audit.md` and `threat-scan.md` accept pre-scan step and pass `<tool_findings>` to agent
+- [x] **ORK-10**: Agent prompts for `gsd-security-scanner.md` and `gsd-threat-scanner.md` shift from "scan everything" to "analyze findings + reason about business logic + triage false positives"
 
 ### SEC: Security Reference Sub-Skills (SEED-007)
 
@@ -41,11 +41,11 @@ Security and threat scanning must be operationalized through deterministic infra
 
 **Planned requirements:**
 
-- [ ] **SEC-01**: Create language-specific sub-skills: Python, JavaScript/TypeScript, Go, Rust, Java, C/C++, PHP
-- [ ] **SEC-02**: Each sub-skill includes OWASP Top 10 patterns translated into semgrep rules
-- [ ] **SEC-03**: Sub-skills embed executable grep patterns for each language's idiomatic vulnerability signatures
-- [ ] **SEC-04**: Sub-skill definitions can be invoked by pre-scan orchestrator and fed to agent with structured findings
-- [ ] **SEC-05**: Semgrep rules reference community sources (semgrep.dev) with version pins for reproducibility
+- [x] **SEC-01**: Create language-specific sub-skills: Python, JavaScript/TypeScript, Go, Rust, Java, C/C++, PHP
+- [x] **SEC-02**: Each sub-skill includes OWASP Top 10 patterns translated into semgrep rules
+- [x] **SEC-03**: Sub-skills embed executable grep patterns for each language's idiomatic vulnerability signatures
+- [x] **SEC-04**: Sub-skill definitions can be invoked by pre-scan orchestrator and fed to agent with structured findings
+- [x] **SEC-05**: Semgrep rules reference community sources (semgrep.dev) with version pins for reproducibility
 
 ### THR: Adversarial Pattern Library (SEED-008)
 
@@ -53,11 +53,11 @@ Security and threat scanning must be operationalized through deterministic infra
 
 **Planned requirements:**
 
-- [ ] **THR-01**: Create `threat-patterns.yml` semgrep ruleset covering obfuscated reverse shells
-- [ ] **THR-02**: Add C2 beacon detection (HTTP callbacks, DNS exfiltration patterns)
-- [ ] **THR-03**: Add supply chain hook patterns (telemetry masquerading, installer post-install hooks)
-- [ ] **THR-04**: Add logic bomb detection (time-based triggers, doomsday clauses)
-- [ ] **THR-05**: Add language-specific adversarial patterns to reference sub-skills ("Threat Scan Patterns" sections)
+- [x] **THR-01**: Create `threat-patterns.yml` semgrep ruleset covering obfuscated reverse shells
+- [x] **THR-02**: Add C2 beacon detection (HTTP callbacks, DNS exfiltration patterns)
+- [x] **THR-03**: Add supply chain hook patterns (telemetry masquerading, installer post-install hooks)
+- [x] **THR-04**: Add logic bomb detection (time-based triggers, doomsday clauses)
+- [x] **THR-05**: Add language-specific adversarial patterns to reference sub-skills ("Threat Scan Patterns" sections)
 
 ### FOR: Git Forensics (SEED-009)
 
@@ -65,13 +65,13 @@ Security and threat scanning must be operationalized through deterministic infra
 
 **Planned requirements:**
 
-- [ ] **FOR-01**: Git forensics analyzes commit history beyond surface-level commands (git log, reflog, branches)
-- [ ] **FOR-02**: Detects binary blobs lingering in git object database
-- [ ] **FOR-03**: Detects history rewrites and force-pushes via reflog analysis
-- [ ] **FOR-04**: Analyzes `.gitattributes` smudge/clean filters for code execution vectors
-- [ ] **FOR-05**: Detects author consistency anomalies (email/key mismatches, timezone/activity bursts, one-time critical contributors)
-- [ ] **FOR-06**: Produces `GIT-FORENSICS.md` report with actionable findings
-- [ ] **FOR-07**: Git forensics gate can be invoked standalone or integrated into threat scan workflow
+- [x] **FOR-01**: Git forensics analyzes commit history beyond surface-level commands (git log, reflog, branches)
+- [x] **FOR-02**: Detects binary blobs lingering in git object database
+- [x] **FOR-03**: Detects history rewrites and force-pushes via reflog analysis
+- [x] **FOR-04**: Analyzes `.gitattributes` smudge/clean filters for code execution vectors
+- [x] **FOR-05**: Detects author consistency anomalies (email/key mismatches, timezone/activity bursts, one-time critical contributors)
+- [x] **FOR-06**: Produces `GIT-FORENSICS.md` report with actionable findings
+- [x] **FOR-07**: Git forensics gate can be invoked standalone or integrated into threat scan workflow
 
 ### OPS: Scanner Operational Excellence (SEED-010)
 
@@ -79,14 +79,14 @@ Security and threat scanning must be operationalized through deterministic infra
 
 **Planned requirements:**
 
-- [ ] **OPS-01**: CI mode for scanning on lockfile changes (package.json, requirements.txt, Gemfile, etc.)
-- [ ] **OPS-02**: Baseline file (detect-secrets style) allows "previously reviewed, still present" state to reduce noise
-- [ ] **OPS-03**: Supply chain intelligence: Read-only APIs (OSV, deps.dev, GitHub Advisory) for package reputation pre-install
-- [ ] **OPS-04**: Quarantine workflow: Formal protocol for flagged files (location, report format, release procedure)
-- [ ] **OPS-05**: SBOM generation via `syft`/`cyclonedx-cli` for known-inventory tracking
-- [ ] **OPS-06**: Scan state tracking (baseline ID, previous scan results, delta reporting)
-- [ ] **OPS-07**: `/gsd-security-audit --ci` mode for automated pipelines
-- [ ] **OPS-08**: `/gsd-threat-scan --ci` mode with deterministic output format
+- [x] **OPS-01**: CI mode for scanning on lockfile changes (package.json, requirements.txt, Gemfile, etc.)
+- [x] **OPS-02**: Baseline file (detect-secrets style) allows "previously reviewed, still present" state to reduce noise
+- [x] **OPS-03**: Supply chain intelligence: Read-only APIs (OSV, deps.dev, GitHub Advisory) for package reputation pre-install
+- [x] **OPS-04**: Quarantine workflow: Formal protocol for flagged files (location, report format, release procedure)
+- [x] **OPS-05**: SBOM generation via `syft`/`cyclonedx-cli` for known-inventory tracking
+- [x] **OPS-06**: Scan state tracking (baseline ID, previous scan results, delta reporting)
+- [x] **OPS-07**: `/gsd-security-audit --ci` mode for automated pipelines
+- [x] **OPS-08**: `/gsd-threat-scan --ci` mode with deterministic output format
 
 ---
 
