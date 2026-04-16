@@ -221,3 +221,177 @@ Loaded by:
 1. `security_prescan.py` — grep patterns executed against target
 2. `pattern-loader.cjs` — `loadPatternFile('javascript')` or `loadPatternFile('typescript')`
 3. `gsd-security-scanner.md` — agent references for contextualizing eslint-security findings
+
+## Threat Scan Patterns
+
+> These patterns detect *deliberately malicious code* — not developer mistakes, but intentional
+> attacks embedded in a codebase. Source: SEED-008 `get-shit-done/semgrep/threat-patterns.yml`.
+
+### Obfuscation Fingerprints
+
+**What to look for:** Base64 decode chains feeding eval/Function, charCode arrays hiding string
+literals, computed property access hiding calls to `eval`/`require`.
+
+#### Grep-Based Detection
+```bash
+# Base64-decode-then-eval chains
+grep -rn "eval(.*atob\|eval(.*Buffer\.from.*base64\|eval(.*b64decode" .
+
+# CharCode array obfuscation
+grep -rn "String\.fromCharCode" . | grep -v "test\|spec\|__tests__"
+
+# Computed property call hiding (obj['ev'+'al'])
+grep -rn "\[.*['\"].*+.*['\"].*\](" . --include="*.js" --include="*.ts"
+```
+
+#### Semgrep Rules (from threat-patterns.yml)
+- `thr-obfuscation-base64-eval-js` — eval(atob(...)) or eval(Buffer.from(...,'base64').toString())
+- `thr-obfuscation-charcode-array-js` — String.fromCharCode with 5+ integer arguments
+- `thr-obfuscation-computed-property-call-js` — obj[$str + $str2](...) computed calls
+
+### Backdoors and Reverse Shells
+
+**What to look for:** child_process.spawn with /bin/sh or /bin/bash, hidden Express routes at
+debug/admin paths, WebSocket connections to raw IP addresses.
+
+#### Grep-Based Detection
+```bash
+# Reverse shell via child_process
+grep -rn "spawn.*bin/[ba]*sh\|exec.*bin/sh" . --include="*.js" --include="*.ts"
+
+# Hidden admin/debug routes
+grep -rn "\.get\|\.post\|\.all" . --include="*.js" | grep -E "debug|backdoor|__exec|shell"
+
+# Raw IP WebSocket (potential C2)
+grep -rn "new WebSocket.*ws[s]*://[0-9]" . --include="*.js" --include="*.ts"
+```
+
+#### Semgrep Rules
+- `thr-backdoor-reverse-shell-js` — child_process.spawn('/bin/sh', ...) variants
+- `thr-backdoor-hidden-route-js` — routes matching debug/backdoor/shell path patterns
+- `thr-exfil-websocket-tunnel-js` — WebSocket to hardcoded IP
+
+### Supply Chain Hooks
+
+**What to look for:** Network calls in postinstall/preinstall lifecycle scripts, file writes
+to paths outside `__dirname`, environment variable enumeration at install time.
+
+#### Grep-Based Detection
+```bash
+# Outbound HTTP in any file named install*.js or postinstall*
+find . -name "postinstall*" -o -name "preinstall*" -o -name "install.js" | xargs grep -ln "fetch\|http\.request\|https\.get" 2>/dev/null
+
+# Full env enumeration (data harvesting)
+grep -rn "Object\.entries(process\.env)\|Object\.keys(process\.env)\|JSON\.stringify(process\.env)" .
+```
+
+#### Semgrep Rules
+- `thr-supply-chain-npm-hook-network-js` — fetch/http.request in install hooks
+- `thr-supply-chain-npm-hook-file-write-js` — fs.writeFileSync to non-__dirname path
+- `thr-osint-env-enumeration-js` — Object.entries/keys(process.env)
+- `thr-osint-credential-file-access-js` — readFile(.aws/credentials, .ssh/id_*)
+
+### Logic Bombs
+
+**What to look for:** Date.now()/new Date() comparisons with hardcoded epoch timestamps
+controlling destructive operations; counter modulo conditions gating network calls.
+
+#### Grep-Based Detection
+```bash
+# Hardcoded epoch timestamp comparisons
+grep -rn "Date\.now()\s*>\|new Date()\.getTime()\s*>" . --include="*.js" --include="*.ts"
+
+# Modulo counter gates
+grep -rn "% [0-9]\+ === 0\b" . --include="*.js" | grep -v "test\|spec"
+```
+
+#### Semgrep Rules
+- `thr-logic-bomb-date-gate-js` — Date.now() > EPOCH controlling eval/exec/fs.unlinkSync
+- `thr-logic-bomb-counter-gate-js` — counter % prime === 0 gating destructive call
+
+## Threat Scan Patterns
+
+> These patterns detect *deliberately malicious code* — not developer mistakes, but intentional
+> attacks embedded in a codebase. Source: SEED-008 `get-shit-done/semgrep/threat-patterns.yml`.
+
+### Obfuscation Fingerprints
+
+**What to look for:** Base64 decode chains feeding eval/Function, charCode arrays hiding string
+literals, computed property access hiding calls to `eval`/`require`.
+
+#### Grep-Based Detection
+```bash
+# Base64-decode-then-eval chains
+grep -rn "eval(.*atob\|eval(.*Buffer\.from.*base64\|eval(.*b64decode" .
+
+# CharCode array obfuscation
+grep -rn "String\.fromCharCode" . | grep -v "test\|spec\|__tests__"
+
+# Computed property call hiding (obj['ev'+'al'])
+grep -rn "\[.*['\"].*+.*['\"].*\](" . --include="*.js" --include="*.ts"
+```
+
+#### Semgrep Rules (from threat-patterns.yml)
+- `thr-obfuscation-base64-eval-js` — eval(atob(...)) or eval(Buffer.from(...,'base64').toString())
+- `thr-obfuscation-charcode-array-js` — String.fromCharCode with 5+ integer arguments
+- `thr-obfuscation-computed-property-call-js` — obj[$str + $str2](...) computed calls
+
+### Backdoors and Reverse Shells
+
+**What to look for:** child_process.spawn with /bin/sh or /bin/bash, hidden Express routes at
+debug/admin paths, WebSocket connections to raw IP addresses.
+
+#### Grep-Based Detection
+```bash
+# Reverse shell via child_process
+grep -rn "spawn.*bin/[ba]*sh\|exec.*bin/sh" . --include="*.js" --include="*.ts"
+
+# Hidden admin/debug routes
+grep -rn "\.get\|\.post\|\.all" . --include="*.js" | grep -E "debug|backdoor|__exec|shell"
+
+# Raw IP WebSocket (potential C2)
+grep -rn "new WebSocket.*ws[s]*://[0-9]" . --include="*.js" --include="*.ts"
+```
+
+#### Semgrep Rules
+- `thr-backdoor-reverse-shell-js` — child_process.spawn('/bin/sh', ...) variants
+- `thr-backdoor-hidden-route-js` — routes matching debug/backdoor/shell path patterns
+- `thr-exfil-websocket-tunnel-js` — WebSocket to hardcoded IP
+
+### Supply Chain Hooks
+
+**What to look for:** Network calls in postinstall/preinstall lifecycle scripts, file writes
+to paths outside `__dirname`, environment variable enumeration at install time.
+
+#### Grep-Based Detection
+```bash
+# Outbound HTTP in any file named install*.js or postinstall*
+find . -name "postinstall*" -o -name "preinstall*" -o -name "install.js" | xargs grep -ln "fetch\|http\.request\|https\.get" 2>/dev/null
+
+# Full env enumeration (data harvesting)
+grep -rn "Object\.entries(process\.env)\|Object\.keys(process\.env)\|JSON\.stringify(process\.env)" .
+```
+
+#### Semgrep Rules
+- `thr-supply-chain-npm-hook-network-js` — fetch/http.request in install hooks
+- `thr-supply-chain-npm-hook-file-write-js` — fs.writeFileSync to non-__dirname path
+- `thr-osint-env-enumeration-js` — Object.entries/keys(process.env)
+- `thr-osint-credential-file-access-js` — readFile(.aws/credentials, .ssh/id_*)
+
+### Logic Bombs
+
+**What to look for:** Date.now()/new Date() comparisons with hardcoded epoch timestamps
+controlling destructive operations; counter modulo conditions gating network calls.
+
+#### Grep-Based Detection
+```bash
+# Hardcoded epoch timestamp comparisons
+grep -rn "Date\.now()\s*>\|new Date()\.getTime()\s*>" . --include="*.js" --include="*.ts"
+
+# Modulo counter gates
+grep -rn "% [0-9]\+ === 0\b" . --include="*.js" | grep -v "test\|spec"
+```
+
+#### Semgrep Rules
+- `thr-logic-bomb-date-gate-js` — Date.now() > EPOCH controlling eval/exec/fs.unlinkSync
+- `thr-logic-bomb-counter-gate-js` — counter % prime === 0 gating destructive call

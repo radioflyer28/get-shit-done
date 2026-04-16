@@ -127,3 +127,97 @@ Loaded by:
 1. `security_prescan.py` — runs `gosec ./...` + grep patterns
 2. `pattern-loader.cjs` — `loadPatternFile('go')`
 3. `gsd-security-scanner.md` — agent references for Go-specific findings
+
+## Threat Scan Patterns
+
+> These patterns detect *deliberately malicious code* -- not developer mistakes, but intentional
+> attacks embedded in a codebase. Source: SEED-008 get-shit-done/semgrep/threat-patterns.yml.
+> Note: Go semgrep coverage in threat-patterns.yml is lighter than JS/Python; grep patterns
+> are the primary detection mechanism for Go.
+
+### Obfuscation Fingerprints
+
+**What to look for:** reflect + unsafe combinations used to call functions without visible
+signatures, init() functions making unexpected network calls, build-tag-gated malicious code.
+
+#### Grep-Based Detection
+```bash
+# reflect + unsafe usage (obfuscation via reflection)
+grep -rn "reflect.|unsafe." . --include="*.go" | grep -v "_test.go|vendor"
+
+# Dynamic eval-equivalent: plugin loading
+grep -rn "plugin.Open|plugin.Lookup" . --include="*.go"
+
+# Network calls in init() functions
+grep -B2 -A20 "^func init()" . -r --include="*.go" | grep -E "http.|net.|Dial|Connect"
+```
+
+#### Semgrep Rules
+Go obfuscation coverage in threat-patterns.yml is limited. Use grep patterns above as primary
+detection. The thr-supply-chain-build-rs-network rule covers Rust build scripts; Go has no
+equivalent rule yet -- use grep on init() network patterns.
+
+### Backdoors and Reverse Shells
+
+**What to look for:** net.Dial or net.Listen combined with os/exec in close proximity,
+os.Stdin/os.Stdout reassignment to network connections, cmd.Stdin = conn patterns.
+
+#### Grep-Based Detection
+```bash
+# net.Dial combined with exec.Command (reverse shell)
+grep -rn "net.Dial|net.Listen" . --include="*.go" | grep -v "_test.go"
+grep -rn "exec.Command" . --include="*.go" | grep -v "_test.go"
+
+# stdin/stdout assigned to network conn (reverse shell signature)
+grep -rn ".Stdins*=|.Stdouts*=" . --include="*.go" | grep -v "_test.go"
+```
+
+### Supply Chain Hooks (init() and build tags)
+
+**What to look for:** Network calls in init() functions that fire at import time; build
+constraint tags that gate malicious code to specific environments.
+
+#### Grep-Based Detection
+```bash
+# init() with network calls
+grep -rn "func init()" . --include="*.go" -l | xargs grep -l "http.|net.Dial" 2>/dev/null
+
+# Suspicious build tags
+grep -rn "//go:build|// +build" . --include="*.go" | grep -v "_test.go"
+
+# os.Getenv bulk enumeration (data harvesting)
+grep -rn "os.Environ()" . --include="*.go" | grep -v "_test.go"
+```
+
+#### Semgrep Rules
+- thr-supply-chain-build-rs-network covers Rust build.rs. For Go, use grep on init() patterns.
+
+### Logic Bombs (Build Tags)
+
+**What to look for:** Build tags that activate code only in specific environments
+(linux+amd64, specific version), combined with destructive or exfiltrating operations.
+
+#### Grep-Based Detection
+```bash
+# Build-tag restricted files
+grep -rn "//go:build|// +build" . --include="*.go" | grep -v "_test.go|vendor"
+
+# Date/time comparisons with hardcoded values
+grep -rn "time.Now().After|time.Now().Before|time.Unix([0-9]" . --include="*.go"
+```
+
+### OSINT Harvesting
+
+**What to look for:** os.Environ() (returns all env vars as slice), reading ~/.aws, ~/.ssh paths.
+
+#### Grep-Based Detection
+```bash
+# Bulk env var enumeration
+grep -rn "os.Environ()" . --include="*.go" | grep -v "_test.go"
+
+# Credential path access
+grep -rn ".aws/credentials|.ssh/id_|.kube/config" . --include="*.go"
+
+# HOME + credential path construction
+grep -rn "os.Getenv.*HOME|homedir." . --include="*.go" | grep -v "_test.go"
+```

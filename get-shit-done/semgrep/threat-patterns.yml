@@ -1,0 +1,507 @@
+# threat-patterns.yml
+# Adversarial pattern ruleset for gsd-threat-scanner (SEED-008)
+# Run via: semgrep --config get-shit-done/semgrep/threat-patterns.yml <target>
+# Categories: backdoor | exfil | supply_chain | logic_bomb | obfuscation | osint
+#
+# Severity tiers:
+#   ERROR   — confirmed adversarial (base64-then-eval in install hook)
+#   WARNING — strong indicator, manual review needed
+#   INFO    — anomaly needing context
+#
+# All rules carry:
+#   metadata.category: <category>
+#   metadata.severity: ERROR | WARNING | INFO
+#   metadata.seed: SEED-008
+
+rules:
+
+  # ── OBFUSCATION ─────────────────────────────────────────────────────────────
+
+  - id: thr-obfuscation-base64-eval-js
+    languages: [javascript, typescript]
+    message: >
+      Base64 decode followed by eval/Function constructor — strong obfuscation indicator.
+      Legitimate code does not eval decoded blobs; this pattern is characteristic of
+      dropper payloads and C2 stage-2 loaders.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: eval(atob(...))
+          - pattern: eval(Buffer.from(..., 'base64').toString())
+          - pattern: eval(Buffer.from(..., 'base64').toString(...))
+          - pattern: new Function(atob(...))()
+          - pattern: new Function(Buffer.from(..., 'base64').toString())()
+    metadata:
+      category: obfuscation
+      severity: ERROR
+      seed: SEED-008
+      languages: [javascript, typescript]
+      references:
+        - https://owasp.org/www-community/attacks/Direct_Dynamic_Code_Evaluation_Eval_Injection
+
+  - id: thr-obfuscation-charcode-array-js
+    languages: [javascript, typescript]
+    message: >
+      String.fromCharCode applied to an array of integers — typical obfuscation technique
+      to hide string literals (URLs, shell commands, eval payloads) from static analysis.
+    severity: WARNING
+    pattern: String.fromCharCode(..., $A, $B, $C, $D, $E, ...)
+    metadata:
+      category: obfuscation
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-obfuscation-computed-property-call-js
+    languages: [javascript, typescript]
+    message: >
+      Function call via computed string property (obj['ev'+'al']) — used to hide
+      calls to dangerous builtins (eval, require, exec) from grep/lint tools.
+    severity: WARNING
+    pattern: $OBJ[$PROP + $SUFFIX](...)
+    metadata:
+      category: obfuscation
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-obfuscation-base64-exec-py
+    languages: [python]
+    message: >
+      exec() or eval() applied to base64.b64decode() output — obfuscated code execution.
+      Characteristic of malicious install hooks and supply chain payloads.
+    severity: ERROR
+    pattern-either:
+      - pattern: exec(base64.b64decode(...))
+      - pattern: eval(base64.b64decode(...))
+      - pattern: exec(__import__('base64').b64decode(...))
+      - pattern: eval(__import__('base64').b64decode(...))
+    metadata:
+      category: obfuscation
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-obfuscation-compile-exec-py
+    languages: [python]
+    message: >
+      exec(compile(...)) with a dynamic/non-literal string argument — dynamically compiles
+      and executes code. Used to delay payload deobfuscation to runtime.
+    severity: WARNING
+    patterns:
+      - pattern: exec(compile($CODE, ..., ...))
+      - pattern-not: exec(compile("...", ..., ...))
+    metadata:
+      category: obfuscation
+      severity: WARNING
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-obfuscation-iex-encoded-ps
+    languages: [generic]
+    message: >
+      PowerShell Invoke-Expression (IEX) with a base64 encoded command
+      (-EncodedCommand flag or [System.Convert]::FromBase64String) — standard
+      PowerShell payload delivery and AMSI evasion technique.
+    severity: ERROR
+    pattern-regex: '(?i)(iex|invoke-expression)\s*\(.*frombase64string|powershell\s+-enc\s+[A-Za-z0-9+/]{20,}'
+    metadata:
+      category: obfuscation
+      severity: ERROR
+      seed: SEED-008
+      languages: [powershell, generic]
+
+  # ── BACKDOOR ────────────────────────────────────────────────────────────────
+
+  - id: thr-backdoor-reverse-shell-js
+    languages: [javascript, typescript]
+    message: >
+      Child process spawning /bin/sh or /bin/bash with stdin/stdout piped — classic
+      reverse shell pattern. Legitimate code uses specific commands, not shell spawns
+      piped to sockets.
+    severity: ERROR
+    pattern-either:
+      - pattern: require('child_process').spawn('/bin/sh', ...)
+      - pattern: require('child_process').spawn('/bin/bash', ...)
+      - pattern: require('child_process').exec('/bin/sh ...')
+      - pattern: child_process.spawn('/bin/sh', ...)
+      - pattern: child_process.spawn('/bin/bash', ...)
+    metadata:
+      category: backdoor
+      severity: ERROR
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-backdoor-reverse-shell-py
+    languages: [python]
+    message: >
+      subprocess.Popen with shell=True combined with a socket or /bin/sh argument —
+      reverse shell execution pattern. Also matches os.system with netcat -e variants.
+    severity: ERROR
+    pattern-either:
+      - pattern: subprocess.Popen(['/bin/sh', ...], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+      - pattern: subprocess.Popen(['/bin/bash', ...], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+      - pattern: os.system('nc -e ...')
+      - patterns:
+          - pattern: subprocess.Popen($CMD, shell=True, ...)
+          - pattern-inside: |
+              $SOCK = socket.socket(...)
+              ...
+    metadata:
+      category: backdoor
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-backdoor-hidden-route-js
+    languages: [javascript, typescript]
+    message: >
+      Express/Koa/Fastify route registered at a path containing debug, admin, backdoor,
+      shell, cmd, or eval keywords — suggests an undocumented access point.
+    severity: WARNING
+    pattern-regex: '\.(get|post|all|use)\s*\(\s*[''"].*?(debug|backdoor|shell|cmd|_admin|__eval|__exec)'
+    metadata:
+      category: backdoor
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  # ── EXFILTRATION / C2 ────────────────────────────────────────────────────────
+
+  - id: thr-exfil-http-callback-install-js
+    languages: [javascript, typescript]
+    message: >
+      Outbound HTTP/HTTPS request inside a file that appears to be an npm install hook
+      (postinstall, preinstall, install.js). Install hooks should not make network calls
+      to external hosts; this is the #1 supply chain delivery mechanism.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: fetch(...)
+          - pattern: require('http').request(...)
+          - pattern: require('https').get(...)
+          - pattern: require('https').request(...)
+          - pattern: axios.get(...)
+          - pattern: axios.post(...)
+      - pattern-inside: |
+          // This matches files named postinstall*, preinstall*, install.js
+          $ANYTHING
+    metadata:
+      category: exfil
+      severity: ERROR
+      seed: SEED-008
+      languages: [javascript, typescript]
+      note: >
+        Semgrep cannot inspect the file path. Run this on postinstall.js, preinstall.js,
+        and install.js targets only, or use the prescan orchestrator's path-filter wrapper.
+
+  - id: thr-exfil-http-callback-setup-py
+    languages: [python]
+    message: >
+      HTTP request inside a setup.py cmdclass run() override — classic install-time
+      exfiltration. Fires during pip install without user awareness.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: urllib.request.urlopen(...)
+          - pattern: requests.get(...)
+          - pattern: requests.post(...)
+          - pattern: http.client.HTTPConnection(...).request(...)
+      - pattern-inside: |
+          class $CMD(install):
+              def run(self):
+                  ...
+    metadata:
+      category: exfil
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-exfil-dns-subdomain-py
+    languages: [python]
+    message: >
+      DNS lookup where the subdomain is a variable (not a literal) — classic DNS
+      exfiltration pattern; data encoded as subdomains to evade HTTP traffic inspection.
+    severity: ERROR
+    pattern-either:
+      - pattern: socket.getaddrinfo($VAR + '.attacker.com', ...)
+      - pattern: socket.getaddrinfo($DATA + $DOMAIN, ...)
+      - patterns:
+          - pattern: socket.gethostbyname($SUBDOMAIN + $DOMAIN)
+          - pattern-not: socket.gethostbyname("..." + $DOMAIN)
+    metadata:
+      category: exfil
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-exfil-websocket-tunnel-js
+    languages: [javascript, typescript]
+    message: >
+      WebSocket connection to a hardcoded non-localhost IP address — potential C2 beacon
+      or data exfil tunnel. Legitimate WebSocket servers use hostnames, not raw IPs.
+    severity: WARNING
+    pattern-regex: 'new\s+WebSocket\s*\(\s*[''"]wss?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
+    metadata:
+      category: exfil
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  # ── SUPPLY CHAIN ─────────────────────────────────────────────────────────────
+
+  - id: thr-supply-chain-npm-hook-network-js
+    languages: [javascript, typescript]
+    message: >
+      Network call (fetch, http.request, https.get) in a file that is an npm lifecycle
+      hook. Package install scripts must not make outbound connections; this pattern
+      is used to beacon install telemetry or exfiltrate environment data at install time.
+    severity: ERROR
+    pattern-either:
+      - pattern: fetch($URL, ...)
+      - pattern: require('https').get($URL, ...)
+      - pattern: require('https').request($OPT, ...)
+      - pattern: require('http').request($OPT, ...)
+    metadata:
+      category: supply_chain
+      severity: ERROR
+      seed: SEED-008
+      languages: [javascript, typescript]
+      note: Apply to postinstall.js / preinstall.js / install.js / .scripts/ files
+
+  - id: thr-supply-chain-npm-hook-file-write-js
+    languages: [javascript, typescript]
+    message: >
+      File write operation in an npm install hook writing to an absolute path or a path
+      constructed with variables — potential persistence mechanism or credential dumper.
+    severity: WARNING
+    pattern-either:
+      - patterns:
+          - pattern: fs.writeFileSync($PATH, ...)
+          - pattern-not: fs.writeFileSync(__dirname + ..., ...)
+          - pattern-not: fs.writeFileSync(path.join(__dirname, ...), ...)
+      - patterns:
+          - pattern: fs.writeFile($PATH, ...)
+          - pattern-not: fs.writeFile(path.join(__dirname, ...), ...)
+    metadata:
+      category: supply_chain
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-supply-chain-setup-py-cmdclass
+    languages: [python]
+    message: >
+      setup.py install command override (class inheriting from `install`) with a run()
+      method making HTTP requests — install-time trojan. Fires on every `pip install`.
+    severity: ERROR
+    patterns:
+      - pattern: |
+          class $CMD(install):
+              def run(self):
+                  ...
+                  $REQ(...)
+                  ...
+      - metavariable-pattern:
+          metavariable: $REQ
+          pattern-either:
+            - pattern: requests.get
+            - pattern: requests.post
+            - pattern: urllib.request.urlopen
+    metadata:
+      category: supply_chain
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-supply-chain-build-rs-network
+    languages: [rust]
+    message: >
+      TCP connection in build.rs — Rust build scripts execute during compilation and
+      should not make network calls. Outbound connections from build.rs are a supply
+      chain attack vector targeting developer machines.
+    severity: WARNING
+    pattern-either:
+      - pattern: std::net::TcpStream::connect(...)
+      - pattern: TcpStream::connect(...)
+    metadata:
+      category: supply_chain
+      severity: WARNING
+      seed: SEED-008
+      languages: [rust]
+      note: This rule is most meaningful when scoped to build.rs files
+
+  # ── LOGIC BOMB ───────────────────────────────────────────────────────────────
+
+  - id: thr-logic-bomb-date-gate-js
+    languages: [javascript, typescript]
+    message: >
+      Date/time comparison controlling a destructive or code-execution operation —
+      time-bomb pattern. Legitimate scheduled operations use proper job queues,
+      not hardcoded epoch timestamp comparisons.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if (Date.now() > $EPOCH) {
+                ...
+                $DESTRUCTIVE(...)
+                ...
+              }
+          - pattern: |
+              if (new Date().getTime() > $EPOCH) {
+                ...
+                $DESTRUCTIVE(...)
+                ...
+              }
+      - metavariable-pattern:
+          metavariable: $DESTRUCTIVE
+          pattern-either:
+            - pattern: eval
+            - pattern: exec
+            - pattern: require('child_process').exec
+            - pattern: fs.unlinkSync
+            - pattern: fs.rmSync
+            - pattern: require('fs').unlinkSync
+    metadata:
+      category: logic_bomb
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-logic-bomb-date-gate-py
+    languages: [python]
+    message: >
+      datetime comparison controlling a destructive operation — time-bomb indicator.
+      Legitimate code uses schedulers/cron for time-based behavior, not hardcoded
+      datetime comparisons with destructive payloads in the branch body.
+    severity: WARNING
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if datetime.now() > datetime($Y, $M, $D):
+                  ...
+                  $DESTRUCTIVE(...)
+                  ...
+          - pattern: |
+              if time.time() > $EPOCH:
+                  ...
+                  $DESTRUCTIVE(...)
+                  ...
+      - metavariable-pattern:
+          metavariable: $DESTRUCTIVE
+          pattern-either:
+            - pattern: os.remove
+            - pattern: shutil.rmtree
+            - pattern: subprocess.run
+            - pattern: subprocess.Popen
+            - pattern: exec
+            - pattern: eval
+    metadata:
+      category: logic_bomb
+      severity: WARNING
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-logic-bomb-counter-gate-js
+    languages: [javascript, typescript]
+    message: >
+      Modulo condition (counter % prime === 0) gating a network call or destructive
+      operation — count-triggered logic bomb. Fires every N executions to delay detection.
+    severity: INFO
+    pattern: |
+      if ($COUNTER % $PRIME === 0) {
+        ...
+        $PAYLOAD(...)
+        ...
+      }
+    metadata:
+      category: logic_bomb
+      severity: INFO
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  # ── OSINT HARVESTING ─────────────────────────────────────────────────────────
+
+  - id: thr-osint-env-enumeration-js
+    languages: [javascript, typescript]
+    message: >
+      Full enumeration of process.env — bulk environment variable harvesting. Legitimate
+      code accesses specific keys (process.env.API_KEY), not iterates all env vars.
+      Combined with serialization or HTTP, this is credential exfiltration.
+    severity: WARNING
+    pattern-either:
+      - pattern: Object.entries(process.env)
+      - pattern: Object.keys(process.env).forEach(...)
+      - pattern: Object.keys(process.env).map(...)
+      - pattern: JSON.stringify(process.env)
+    metadata:
+      category: osint
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-osint-env-enumeration-py
+    languages: [python]
+    message: >
+      Iteration over os.environ.items() combined with JSON serialization or HTTP call —
+      bulk environment variable harvesting and exfiltration pattern.
+    severity: WARNING
+    patterns:
+      - pattern: |
+          for $K, $V in os.environ.items():
+              ...
+              $EXFIL(...)
+              ...
+      - metavariable-pattern:
+          metavariable: $EXFIL
+          pattern-either:
+            - pattern: json.dumps
+            - pattern: requests.post
+            - pattern: urllib.request.urlopen
+            - pattern: print
+    metadata:
+      category: osint
+      severity: WARNING
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-osint-credential-file-access-js
+    languages: [javascript, typescript]
+    message: >
+      Programmatic read of known credential file paths (.aws/credentials, .ssh/id_*,
+      .kube/config) — credential harvesting. No legitimate application feature requires
+      reading the user's personal SSH keys or AWS credentials file.
+    severity: ERROR
+    pattern-regex: '(readFile|readFileSync)\s*\([^)]*\.(aws/credentials|ssh/id_[a-z]|kube/config)'
+    metadata:
+      category: osint
+      severity: ERROR
+      seed: SEED-008
+      languages: [javascript, typescript]
+
+  - id: thr-osint-credential-file-access-py
+    languages: [python]
+    message: >
+      open() call accessing known credential file paths (.aws/credentials, .ssh/id_*,
+      .kube/config) — credential harvesting pattern.
+    severity: ERROR
+    pattern-regex: 'open\s*\([^)]*\.(aws/credentials|ssh/id_[a-z]|kube/config)'
+    metadata:
+      category: osint
+      severity: ERROR
+      seed: SEED-008
+      languages: [python]
+
+  - id: thr-osint-env-serialization-js
+    languages: [javascript, typescript]
+    message: >
+      JSON serialization of the entire process.env object — captures all environment
+      variables for potential transmission. Common in supply chain credential theft.
+    severity: WARNING
+    pattern: JSON.stringify(process.env)
+    metadata:
+      category: osint
+      severity: WARNING
+      seed: SEED-008
+      languages: [javascript, typescript]

@@ -201,3 +201,105 @@ Loaded by:
 1. `security_prescan.py` — grep patterns executed against target codebase
 2. `pattern-loader.cjs` — `loadPatternFile('python')` returns structured patterns
 3. `gsd-security-scanner.md` — agent references for contextualizing bandit findings
+
+## Threat Scan Patterns
+
+> These patterns detect *deliberately malicious code* — not developer mistakes, but intentional
+> attacks embedded in a codebase. Source: SEED-008 `get-shit-done/semgrep/threat-patterns.yml`.
+
+### Obfuscation Fingerprints
+
+**What to look for:** exec/eval applied to base64.b64decode output, exec(compile()) with dynamic
+strings, __import__() used to dynamically load modules at runtime.
+
+#### Grep-Based Detection
+```bash
+# exec/eval of base64 decoded payload
+grep -rn "exec(base64\|eval(base64\|exec(__import__.*base64" . --include="*.py"
+
+# Dynamic compile + exec
+grep -rn "exec(compile(" . --include="*.py"
+
+# Dynamic __import__ calls
+grep -rn "__import__(" . --include="*.py" | grep -v "test\|spec"
+```
+
+#### Semgrep Rules (from threat-patterns.yml)
+- `thr-obfuscation-base64-exec-py` — exec(base64.b64decode(...)) or eval(base64.b64decode(...))
+- `thr-obfuscation-compile-exec-py` — exec(compile(dynamic_string, ...))
+
+### Backdoors and Reverse Shells
+
+**What to look for:** subprocess.Popen with /bin/sh and stdin/stdout=PIPE, os.system with netcat
+-e flags, socket + subprocess combination patterns.
+
+#### Grep-Based Detection
+```bash
+# Reverse shell subprocess pattern
+grep -rn "Popen.*bin/sh\|Popen.*bin/bash" . --include="*.py"
+
+# Netcat reverse shell
+grep -rn "os\.system.*nc -e\|os\.system.*ncat" . --include="*.py"
+
+# Socket combined with shell exec
+grep -rn "socket\.socket" . --include="*.py" | xargs grep -l "subprocess\|os\.system" 2>/dev/null
+```
+
+#### Semgrep Rules
+- `thr-backdoor-reverse-shell-py` — subprocess.Popen(['/bin/sh',...], stdin=PIPE, stdout=PIPE)
+
+### Supply Chain Hooks (setup.py)
+
+**What to look for:** Classes inheriting from setuptools `install` with `run()` override
+making HTTP calls or writing files; this fires during `pip install`.
+
+#### Grep-Based Detection
+```bash
+# Install command override
+grep -rn "class.*install.*:" setup.py | grep -v "#"
+grep -rn "def run(self)" setup.py
+
+# Network calls in setup.py
+grep -rn "urllib\|requests\." setup.py
+```
+
+#### Semgrep Rules
+- `thr-supply-chain-setup-py-cmdclass` — class inheriting install with run() making HTTP requests
+- `thr-exfil-http-callback-setup-py` — urllib/requests calls inside cmdclass.run()
+
+### Logic Bombs
+
+**What to look for:** datetime.now() or time.time() comparisons with hardcoded year/epoch values
+controlling os.remove, shutil.rmtree, subprocess calls.
+
+#### Grep-Based Detection
+```bash
+# Datetime comparison with hardcoded date
+grep -rn "datetime\.now().*>" . --include="*.py"
+grep -rn "time\.time().*>" . --include="*.py"
+
+# Destructive operations near time checks
+grep -B5 -A5 "os\.remove\|shutil\.rmtree" . -r --include="*.py" | grep -E "time|date|datetime"
+```
+
+#### Semgrep Rules
+- `thr-logic-bomb-date-gate-py` — datetime.now() > datetime(Y,M,D) controlling os.remove/subprocess
+
+### OSINT Harvesting
+
+**What to look for:** Iteration over os.environ.items() with serialization or HTTP calls;
+open() accessing .aws/credentials, .ssh/id_*, .kube/config.
+
+#### Grep-Based Detection
+```bash
+# Bulk environment enumeration
+grep -rn "os\.environ\.items()\|os\.environ\.keys()" . --include="*.py"
+
+# Credential file access
+grep -rn "\.aws/credentials\|\.ssh/id_\|\.kube/config" . --include="*.py"
+```
+
+#### Semgrep Rules
+- `thr-osint-env-enumeration-py` — for k,v in os.environ.items() with serialization/HTTP
+- `thr-osint-credential-file-access-py` — open(.aws/credentials, .ssh/id_*, .kube/config)
+- `thr-exfil-dns-subdomain-py` — socket.getaddrinfo(variable + domain) DNS exfil pattern
