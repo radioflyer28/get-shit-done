@@ -27,7 +27,7 @@
 | Phase | Title | Goal | Requirements | Status |
 |-------|-------|------|--------------|--------|
 | 6 | Pre-Scan Orchestrator | Hybrid bash/Python layer offloads mechanical scanning | ORK-01 to ORK-10 | ✅ Complete (2026-04-15) |
-| 7 | Security Patterns | Language-specific executable vulnerability rules | SEC-01 to SEC-05 | 🔨 Planned (2026-04-17) |
+| 7 | Security Patterns | 1/1 | Complete   | 2026-04-16 |
 | 8 | Threat Patterns | Adversarial/malicious code detection ruleset | THR-01 to THR-05 | Not started |
 | 9 | Git Forensics | Supply chain attack analysis via commit history | FOR-01 to FOR-07 | Not started |
 | 10 | Scanner Operations | CI integration, baselines, quarantine, SBOM | OPS-01 to OPS-08 | Not started |
