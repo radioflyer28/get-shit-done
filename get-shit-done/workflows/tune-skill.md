@@ -230,7 +230,7 @@ If not: Require approval/rejection.
 
 If any refinement needed:
 - Collect refinement instruction from user (applies to all remaining issues)
-- Re-invoke tuner for all unfinaliz​ed issues with refinement instruction
+- Re-invoke tuner for all unfinalized issues with refinement instruction
 - Return to present_diffs step
 
 Within batch, each skill can iterate independently (no global iteration cap shared across skills).
@@ -449,7 +449,7 @@ Transcript files (session logs, error recordings, markdown notes) often contain 
 
 **Extraction process:**
 
-1. Read transcript from --transcript path
+1. **Load transcript file** — Read transcript from --transcript path into memory. Validate file exists and is readable.
 2. Split into lines; look for friction patterns
 3. Extract matching keywords with surrounding context (e.g., 2-3 words before/after)
 4. Group by keyword category (error, performance, clarity, intent)
