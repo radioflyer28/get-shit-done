@@ -56,6 +56,17 @@ Plans:
 - [ ] 08-01-PLAN.md — Full adversarial ruleset: obfuscation, C2 beacons, supply chain hooks, logic bombs + per-language threat sections + orchestrator/agent wiring
 
 **Status:** Planned. Execute after Phase 7.
+
+## Phase 9: Git Forensics Agent (Planned)
+
+**Goal:** Supply chain attack detection via deep commit history analysis (FOR-01 to FOR-07).
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 09-01-PLAN.md — Git history analysis, binary blob detection, history rewrite detection, author anomalies, GIT-FORENSICS.md output + threat-scan integration
+
+**Status:** Planned. Execute after Phase 8.
 ## Quick Links
 
 - **v1.1 Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md)
