@@ -37,19 +37,84 @@ fi
 **Prescan Result:** Deterministic tool outputs (npm audit, semgrep, gitleaks, etc.) consolidated into normalized findings. Agent will receive these as structured input to focus on analysis rather than mechanical scanning.
 </step>
 
+<step name="supply_chain_intel">
+Run supply chain intelligence queries against OSV, deps.dev, and GitHub Advisory in parallel when lockfiles are present.
+
+```bash
+SUPPLY_CHAIN_INTEL_FILE="SUPPLY-CHAIN-INTEL.json"
+SUPPLY_CHAIN_INTEL_PATH="${ABS_TARGET:-$PWD}/${SUPPLY_CHAIN_INTEL_FILE}"
+
+# Check if any lockfile exists in target directory
+LOCKFILES_PRESENT=$(find "${ABS_TARGET:-$PWD}" -maxdepth 2 -name 'package-lock.json' \
+  -o -name 'yarn.lock' -o -name 'pnpm-lock.yaml' \
+  -o -name 'requirements.txt' -o -name 'Pipfile.lock' -o -name 'poetry.lock' \
+  -o -name 'Cargo.lock' -o -name 'go.sum' -o -name 'Gemfile.lock' \
+  2>/dev/null | head -1)
+
+if [ -n "$LOCKFILES_PRESENT" ]; then
+  SUPPLY_SCRIPT="$(dirname "$0")/../bin/supply_chain_intel.py"
+  if command -v python3 >/dev/null 2>&1 && [ -f "$SUPPLY_SCRIPT" ]; then
+    echo "Running supply chain intelligence queries..."
+    python3 "$SUPPLY_SCRIPT" "${ABS_TARGET:-$PWD}" --output "${SUPPLY_CHAIN_INTEL_PATH}" 2>&1 || \
+      echo "⚠ Supply chain intel query failed (offline or API error) — continuing without it"
+    if [ -f "$SUPPLY_CHAIN_INTEL_PATH" ]; then
+      echo "✓ Supply chain intel written to ${SUPPLY_CHAIN_INTEL_FILE}"
+      SUPPLY_CHAIN_FINDINGS=$(cat "$SUPPLY_CHAIN_INTEL_PATH")
+    fi
+  else
+    echo "⚠ supply_chain_intel.py or python3 not found — skipping supply chain queries"
+  fi
+fi
+```
+</step>
+
+<step name="baseline_apply">
+**Only runs when `--baseline=<path>` flag is set.** Filter accepted false positives from PRE-SCAN-RESULTS.json.
+
+```bash
+if [ -n "$BASELINE_FILE" ] && [ -f "PRE-SCAN-RESULTS.json" ]; then
+  BASELINE_SCRIPT="$(dirname "$0")/../bin/scan_baseline.py"
+  if command -v python3 >/dev/null 2>&1 && [ -f "$BASELINE_SCRIPT" ]; then
+    echo "Applying baseline: $BASELINE_FILE"
+    python3 "$BASELINE_SCRIPT" apply PRE-SCAN-RESULTS.json "$BASELINE_FILE" > PRE-SCAN-RESULTS-filtered.json 2>&1
+    if [ $? -eq 0 ]; then
+      mv PRE-SCAN-RESULTS-filtered.json PRE-SCAN-RESULTS.json
+      echo "✓ Baseline applied — suppressed findings removed from scan scope"
+    else
+      echo "⚠ Baseline apply failed — using unfiltered results"
+    fi
+  fi
+fi
+```
+</step>
+
 <step name="initialize">
 Parse arguments:
+
+Flags:
+- `--depth=<quick|standard|deep>` — scan depth (default: standard)
+- `--focus=<deps|secrets|code|config|all>` — what to focus on (default: all)
+- `--files=<comma-separated>` — specific files to scan
+- `--ci` — CI mode: skip scan if no lockfiles changed, produce CI_RESULTS.json, exit 0/1
+- `--baseline=<path>` — baseline file path for suppressing accepted false positives
+- `--sbom` — generate SBOM.json after scan completes
 
 ```bash
 DEPTH="standard"
 FOCUS="all"
 FILES_OVERRIDE=""
+CI_MODE="false"
+BASELINE_FILE=""
+SBOM_MODE="false"
 
 for arg in $ARGUMENTS; do
   case "$arg" in
     --depth=*) DEPTH="${arg#--depth=}" ;;
     --focus=*) FOCUS="${arg#--focus=}" ;;
     --files=*) FILES_OVERRIDE="${arg#--files=}" ;;
+    --ci) CI_MODE="true" ;;
+    --baseline=*) BASELINE_FILE="${arg#--baseline=}" ;;
+    --sbom) SBOM_MODE="true" ;;
   esac
 done
 ```
@@ -76,6 +141,29 @@ Display banner:
   GSD > SECURITY AUDIT
   Depth: {depth} | Focus: {focus}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+</step>
+
+<step name="ci_mode_check">
+**Only runs when `--ci` flag is set.** Detect lockfile changes and skip scan if none found.
+
+```bash
+if [ "$CI_MODE" = "true" ]; then
+  CI_SCRIPT="$(dirname "$0")/../bin/scan_ci.sh"
+  if [ ! -f "$CI_SCRIPT" ]; then
+    echo "CI: scan_ci.sh not found at $CI_SCRIPT — aborting" >&2
+    exit 2
+  fi
+  # shellcheck source=get-shit-done/bin/scan_ci.sh
+  source "$CI_SCRIPT"
+  detect_lockfile_changes "${PWD}"
+  if [ -z "$CI_LOCKFILES_CHANGED" ]; then
+    echo "CI: No lockfile changes detected — skipping scan"
+    write_ci_results "security" 0 "SKIPPED"
+    exit 0
+  fi
+  echo "CI: Lockfile changes detected: $CI_LOCKFILES_CHANGED"
+fi
 ```
 </step>
 
@@ -487,15 +575,80 @@ Next steps:
 Display `/clear` reminder.
 </step>
 
+<step name="sbom_generation">
+**Only runs when `--sbom` flag is set.** Generate SBOM after audit completes.
+
+```bash
+if [ "$SBOM_MODE" = "true" ]; then
+  SBOM_SCRIPT="$(dirname "$0")/../bin/sbom_generate.sh"
+  if [ -f "$SBOM_SCRIPT" ]; then
+    echo "Generating SBOM..."
+    bash "$SBOM_SCRIPT" "${ABS_TARGET:-$PWD}" "${ABS_TARGET:-$PWD}/SBOM.json"
+    SBOM_EXIT=$?
+    if [ $SBOM_EXIT -eq 0 ]; then
+      echo "✓ SBOM written to SBOM.json"
+    elif [ $SBOM_EXIT -eq 1 ]; then
+      echo "⚠ SBOM generation skipped — no supported tool found (see instructions above)"
+    else
+      echo "⚠ SBOM generation failed — check tool installation"
+    fi
+  fi
+fi
+```
+</step>
+
+<step name="ci_output">
+**Only runs when `--ci` flag is set.** Write CI_RESULTS.json and exit with appropriate code.
+
+```bash
+if [ "$CI_MODE" = "true" ]; then
+  CI_SCRIPT="$(dirname "$0")/../bin/scan_ci.sh"
+  source "$CI_SCRIPT"
+  AGENT_OUTPUT="${AGENT_OUTPUT:-}"
+  # Determine verdict from agent output
+  if echo "$AGENT_OUTPUT" | grep -qiE 'CLEAN|no findings|0 findings|No vulnerabilities'; then
+    write_ci_results "security" 0 "CLEAN"
+    exit 0
+  else
+    FINDINGS_COUNT=$(echo "$AGENT_OUTPUT" | grep -cE '^[[:space:]]*[-*].*[Ff]inding|FINDING:' 2>/dev/null || echo "1")
+    # Ensure integer
+    FINDINGS_COUNT=$(echo "$FINDINGS_COUNT" | grep -E '^[0-9]+$' || echo "1")
+    write_ci_results "security" "$FINDINGS_COUNT" "FINDINGS_PRESENT"
+    exit 1
+  fi
+fi
+```
+</step>
+
+<step name="scan_state_update">
+Update scan state after audit completes (enables delta reporting on next run).
+
+```bash
+if [ -f "PRE-SCAN-RESULTS.json" ] && command -v python3 >/dev/null 2>&1; then
+  STATE_SCRIPT="$(dirname "$0")/../bin/scan_state.py"
+  if [ -f "$STATE_SCRIPT" ]; then
+    python3 "$STATE_SCRIPT" record PRE-SCAN-RESULTS.json ".gsd-scan-state.json" 2>&1 || \
+      echo "⚠ Scan state update failed — delta reporting unavailable for next run"
+  fi
+fi
+```
+</step>
+
 </process>
 
 <success_criteria>
-- [ ] Arguments parsed and validated (depth, focus, files)
+- [ ] Arguments parsed and validated (depth, focus, files, --ci, --baseline, --sbom)
+- [ ] CI mode: lockfile change detection runs when --ci set; exits 0 if no lockfile changes
+- [ ] Supply chain intel queries run when lockfiles present (graceful fallback when offline)
+- [ ] Baseline filtering applied when --baseline flag set
 - [ ] Project type and package manager detected
 - [ ] File scope computed (--files or automatic)
 - [ ] Output directory created
 - [ ] Scanner agent spawned with complete context
 - [ ] Agent return handled (COMPLETE or BLOCKED)
+- [ ] SBOM generated when --sbom flag set
+- [ ] Scan state updated after audit (enables delta reporting)
+- [ ] CI_RESULTS.json written when --ci flag set
 - [ ] Report committed
 - [ ] Results with routing presented
 </success_criteria>

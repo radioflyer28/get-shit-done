@@ -101,6 +101,7 @@ TARGET_PATH="."
 DEPTH="standard"
 FOCUS="all"
 QUARANTINE="false"
+CI_MODE="false"
 
 # First positional arg is target path (if not a flag)
 for arg in $ARGUMENTS; do
@@ -108,6 +109,7 @@ for arg in $ARGUMENTS; do
     --depth=*) DEPTH="${arg#--depth=}" ;;
     --focus=*) FOCUS="${arg#--focus=}" ;;
     --quarantine) QUARANTINE="true" ;;
+    --ci) CI_MODE="true" ;;
     --*) ;; # unknown flag, ignore
     *) TARGET_PATH="$arg" ;; # positional = target path
   esac
@@ -149,6 +151,35 @@ Display banner:
   Depth: {depth} | Focus: {focus}
   ⚠️  Static analysis only — no code will be executed
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Available flags:**
+- `--depth=<quick|standard|deep>` — scan depth (default: standard)
+- `--focus=<backdoors|exfil|supply-chain|osint|all>` — focus area (default: all)
+- `--quarantine` — quarantine confirmed threat files to .quarantine/
+- `--ci` — CI mode: non-interactive, JSON output, exit 0 (clean/skip) or 1 (threats found)
+</step>
+
+<step name="ci_mode_check">
+**Only runs when `--ci` flag is set.** Detect lockfile changes and produce deterministic output.
+
+```bash
+if [ "$CI_MODE" = "true" ]; then
+  CI_SCRIPT="$(dirname "$0")/../bin/scan_ci.sh"
+  if [ ! -f "$CI_SCRIPT" ]; then
+    echo "CI: scan_ci.sh not found at $CI_SCRIPT — aborting" >&2
+    exit 2
+  fi
+  # shellcheck source=get-shit-done/bin/scan_ci.sh
+  source "$CI_SCRIPT"
+  detect_lockfile_changes "${ABS_TARGET}"
+  if [ -z "$CI_LOCKFILES_CHANGED" ]; then
+    echo "CI: No lockfile changes detected — skipping threat scan"
+    write_ci_results "threat" 0 "SKIPPED"
+    exit 0
+  fi
+  echo "CI: Lockfile changes detected: $CI_LOCKFILES_CHANGED"
+fi
 ```
 </step>
 
@@ -484,7 +515,7 @@ Handle return:
 <step name="quarantine">
 **Only if `--quarantine` AND verdict is COMPROMISED.**
 
-Write threat metadata to `.quarantine/` — do NOT copy malicious files into the project or git history:
+Write structured threat metadata to `.quarantine/` — do NOT copy malicious files into the project or git history:
 ```bash
 mkdir -p .quarantine
 
@@ -492,19 +523,76 @@ mkdir -p .quarantine
 for threat_file in ${CONFIRMED_FILES}; do
   BASENAME=$(basename ${threat_file})
   META_PATH=".quarantine/${BASENAME}.threat.md"
-  echo "# Threat Metadata" > "${META_PATH}"
-  echo "" >> "${META_PATH}"
-  echo "- **Original path:** ${threat_file}" >> "${META_PATH}"
-  echo "- **Scan date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${META_PATH}"
-  echo "- **SHA-256:** $(sha256sum ${threat_file} 2>/dev/null | cut -d' ' -f1)" >> "${META_PATH}"
-  echo "- **File size:** $(wc -c < ${threat_file}) bytes" >> "${META_PATH}"
-  echo "- **Threat:** ${THREAT_DESCRIPTION}" >> "${META_PATH}"
-  echo "" >> "${META_PATH}"
-  echo "> File NOT copied. Use the hash to identify the original." >> "${META_PATH}"
+  SCAN_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  FILE_HASH=$(sha256sum ${threat_file} 2>/dev/null | cut -d' ' -f1 || echo "hash-unavailable")
+  FILE_SIZE=$(wc -c < ${threat_file} 2>/dev/null || echo "unknown")
+
+  cat > "${META_PATH}" << THREAT_EOF
+# Quarantine Report: ${BASENAME}
+
+**Status:** QUARANTINED
+**Date:** ${SCAN_DATE}
+**Scan ID:** $(git rev-parse --short HEAD 2>/dev/null || echo "no-git")-$(date +%s)
+**Verdict:** COMPROMISED
+
+## Affected File
+
+- **Path:** ${threat_file}
+- **SHA256:** ${FILE_HASH}
+- **Size:** ${FILE_SIZE} bytes
+
+## Findings Summary
+
+${THREAT_DESCRIPTION}
+
+## Release Procedure
+
+To release this file from quarantine:
+1. Review findings with a second reviewer
+2. Confirm each finding is a false positive or has been remediated
+3. Run: \`rm .quarantine/${BASENAME}.threat.md\`
+4. Document rationale in git commit message: \`quarantine: release ${BASENAME} — <reason>\`
+5. If the file was removed from the repo, restore it only after confirmation
+
+> **Note:** Never copy or commit malicious file contents into git history.
+> Quarantine is metadata-only: paths, hashes, and descriptions.
+THREAT_EOF
+
+  echo "Quarantined: ${META_PATH}"
 done
 ```
 
 **Important:** Never copy or commit malicious file contents into git history. Quarantine is metadata-only: paths, hashes, and descriptions.
+</step>
+
+<step name="ci_output">
+**Only runs when `--ci` flag is set.** Write CI_RESULTS.json with deterministic output and exit.
+
+```bash
+if [ "$CI_MODE" = "true" ]; then
+  CI_SCRIPT="$(dirname "$0")/../bin/scan_ci.sh"
+  source "$CI_SCRIPT"
+  AGENT_OUTPUT="${AGENT_OUTPUT:-}"
+  # Map threat scan verdict to CI verdict
+  if echo "$AGENT_OUTPUT" | grep -q "## SCAN COMPLETE — CLEAN"; then
+    write_ci_results "threat" 0 "CLEAN"
+    exit 0
+  elif echo "$AGENT_OUTPUT" | grep -q "## SCAN COMPLETE — SUSPICIOUS"; then
+    FINDINGS_COUNT=$(echo "$AGENT_OUTPUT" | grep -cE '^[[:space:]]*[-*].*[Ff]inding|FINDING:' 2>/dev/null || echo "1")
+    FINDINGS_COUNT=$(echo "$FINDINGS_COUNT" | grep -E '^[0-9]+$' || echo "1")
+    write_ci_results "threat" "$FINDINGS_COUNT" "SUSPICIOUS"
+    exit 1
+  elif echo "$AGENT_OUTPUT" | grep -q "## SCAN COMPLETE — COMPROMISED"; then
+    FINDINGS_COUNT=$(echo "$AGENT_OUTPUT" | grep -cE '^[[:space:]]*[-*].*[Ff]inding|FINDING:' 2>/dev/null || echo "1")
+    FINDINGS_COUNT=$(echo "$FINDINGS_COUNT" | grep -E '^[0-9]+$' || echo "1")
+    write_ci_results "threat" "$FINDINGS_COUNT" "COMPROMISED"
+    exit 1
+  else
+    write_ci_results "threat" 0 "UNKNOWN"
+    exit 2
+  fi
+fi
+```
 </step>
 
 <step name="commit_and_present">
