@@ -14,6 +14,31 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 <process>
 
+<step name="prescan_threat">Run pre-scan orchestrator to collect deterministic tool findings before threat analysis.
+
+```bash
+# Execute pre-scan if available (threat-focused configuration)
+if [ -x "./get-shit-done/bin/security-prescan.sh" ]; then
+  echo "Running pre-scan orchestrator (threat-scan mode)..."
+  export PRESCAN_FOCUS="secrets,backdoors,supply-chain"  # Focus on threats
+  ./get-shit-done/bin/security-prescan.sh "${ABS_TARGET}" 2>&1
+  
+  if [ -f "${ABS_TARGET}/PRE-SCAN-RESULTS.json" ]; then
+    echo "✓ Threat pre-scan findings collected"
+    PRESCAN_FINDINGS=$(cat "${ABS_TARGET}/PRE-SCAN-RESULTS.json")
+  else
+    echo "⚠ Pre-scan did not produce results"
+    PRESCAN_FINDINGS=""
+  fi
+else
+  echo "⚠ Pre-scan orchestrator not found"
+  PRESCAN_FINDINGS=""
+fi
+```
+
+**Prescan Result:** Deterministic findings from secret scanners, binary analysis, and supply chain checks. Agent will receive these to focus threat analysis on suspicious patterns rather than mechanical tool invocation.
+</step>
+
 <step name="initialize">
 Parse arguments:
 

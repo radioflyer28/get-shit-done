@@ -53,23 +53,57 @@ If prompt contains `<mapper_intel>`, use the pre-mapped codebase context to:
 If `chunk_mode=true`: scan only the files provided in `<required_reading>` and only the focus areas specified. Do not attempt to discover additional files. Write findings to the chunk-specific output_path. The orchestrator will merge all chunks.
 </step>
 
-<step name="scan_dependencies">
+<step name="analyze_dependencies">
 **Skip if focus excludes deps.**
 
-Analyze dependency manifests for known vulnerabilities:
+**MODE SHIFT: Analysis-focused (deterministic tool findings already available)**
+
+If PRE-SCAN-RESULTS.json is available, use it as primary input:
+
+```json
+<tool_findings>
+The following structured findings were produced by the pre-scan orchestrator:
+{PRESCAN_FINDINGS}
+</tool_findings>
+```
+
+**Your job:** Analyze the pre-scan findings, NOT re-scan manually.
+
+**Analysis tasks:**
+1. **False Positive Triage:** Which dependencies are flagged but not exploitable in this context?
+   - Is the vulnerable function actually called?
+   - Are there mitigations in place (sandboxing, input validation)?
+   - Is the vulnerability in an error path that won't execute?
+
+2. **Business Logic Impact:** For genuine vulnerabilities:
+   - Could an attacker trigger the code path?
+   - What data is at risk?
+   - What actions could an attacker perform?
+
+3. **Remediation Priority:** Which should be fixed first?
+   - Critical + remotely exploitable → FIX IMMEDIATELY
+   - High + requires user interaction → FIX THIS SPRINT
+   - Medium + low-impact data → FIX NEXT SPRINT
+   - Low + cosmetic → BACKLOG
+
+4. **Dependency Chain Analysis:** Review transitive dependencies:
+   - Are there pinning vulnerabilities in the chain?
+   - Are indirect dependencies from unpopular sources?
+   - Any yanked versions?
+
+5. **Patching Strategy:** For each vulnerability:
+   - Is a patch available?
+   - Are there breaking changes in the patch?
+   - Can this be fixed with a version constraint change in package.json/requirements.txt?
+
+If PRE-SCAN-RESULTS.json is NOT available (tools not installed), fall back to manual scan:
 
 ```bash
 # Node.js
 npm audit --json 2>/dev/null || true
-cat package-lock.json 2>/dev/null | head -200
 
-# Python — prefer uvx pip-audit (runs in ephemeral venv, zero footprint)
-uvx pip-audit --requirement requirements.txt --format json 2>/dev/null || \
-  uvx pip-audit --requirement pyproject.toml --format json 2>/dev/null || \
-  pip-audit --requirement requirements.txt --format json 2>/dev/null || \
-  pip list --format=json 2>/dev/null || true
-cat requirements.txt 2>/dev/null
-cat pyproject.toml 2>/dev/null
+# Python
+pip-audit --requirement requirements.txt --format json 2>/dev/null || true
 
 # Go
 go list -m -json all 2>/dev/null || true
@@ -78,19 +112,50 @@ go list -m -json all 2>/dev/null || true
 cargo audit 2>/dev/null || true
 ```
 
-Check for:
-- Known CVEs in direct dependencies
-- Outdated dependencies with known security patches
-- Typosquatting indicators (similar names to popular packages)
-- Yanked/deprecated packages
-- Dependencies with excessive permissions (postinstall scripts making network calls)
-- Pinning strategy (exact versions vs ranges)
+But always prefer pre-scan findings when available for consistency.
 </step>
 
-<step name="scan_secrets">
+<step name="analyze_secrets">
 **Skip if focus excludes secrets.**
 
-Search for hardcoded secrets and credentials:
+**MODE SHIFT: Analysis-focused (deterministic tool findings already available)**
+
+If PRE-SCAN-RESULTS.json is available, analyze secrets from pre-scan:
+
+```json
+<tool_findings_secrets>
+The following secret patterns were detected by pre-scan secret scanners (gitleaks, trufflehog):
+{PRESCAN_FINDINGS.findings[?type=='secret']}
+</tool_findings_secrets>
+```
+
+**Your job:** Triage and prioritize secret findings.
+
+**Triage tasks:**
+1. **False Positive Classification:** Which detections are NOT actually secrets?
+   - Entropy false positives (random-looking but not credentials)?
+   - Test fixtures that are intentionally public?
+   - Mock data in tests?
+   - Legitimate randomness that pattern-matched?
+
+2. **Credential Severity:** For real secrets:
+   - **CRITICAL:** AWS keys, GCP keys, Azure credentials → ROTATE IMMEDIATELY
+   - **HIGH:** GitHub PATs, private API keys → ROTATE & REVOKE
+   - **MEDIUM:** Database credentials in comments → CHANGE PASSWORD
+   - **LOW:** Expired credentials, test fixtures → LOG & REMOVE
+
+3. **Exposure Timeline:** When was the secret exposed?
+   - Is it in current code or historical git commits?
+   - How many commits back?
+   - Has it been rotated since exposure?
+
+4. **Remediation:** For each secret:
+   - Rotate/revoke the credential
+   - Remove from code and git history (BFG, git-filter-branch)
+   - Add to .gitignore
+   - Update .env template
+
+If PRE-SCAN-RESULTS.json is NOT available, search manually:
 
 **High-confidence patterns (likely real secrets):**
 ```

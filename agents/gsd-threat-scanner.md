@@ -95,7 +95,58 @@ cd {target_path} && git log --diff-filter=A --name-only --format="" -20 2>/dev/n
 Build a mental model: What does this project claim to do? What files would you expect? What files are unexpected?
 </step>
 
-<step name="scan_backdoors">
+<step name="analyze_findings_for_threats">
+**Threat Analysis Mode (deterministic tool findings already available)**
+
+If PRE-SCAN-RESULTS.json is available, use it as primary signal:
+
+```json
+<tool_findings_threats>
+Structured findings from pre-scan secret scanners and code analysis:
+{PRESCAN_FINDINGS}
+
+Interpret these findings through a threat lens:
+- Exposed secrets → Access vector for attacker
+- Unsafe code patterns → Exploitation entry point
+- Suspicious dependencies → Supply chain attack vector
+- Build hooks → Installation-time trojan delivery
+</tool_findings_threats>
+```
+
+**Your job:** Reason adversarially about what findings reveal about threat vectors.
+
+**Analysis tasks:**
+1. **Exposed Secrets as Attack Vectors:** Which secrets could enable compromise?
+   - API keys → Can attacker access APIs? Call expensive operations? Steal data?
+   - DB credentials → Can attacker access production data?
+   - Private keys → Can attacker impersonate services or sign commits?
+
+2. **Code Patterns as Exploitation Paths:** Which unsafe patterns are weaponizable?
+   - RCE vulnerability + network-accessible service → Remote compromise
+   - SQL injection + production data access → Data exfiltration
+   - Path traversal + file upload → Code injection + persistence
+
+3. **Dependency Chain as Supply Chain Risk:** Which dependencies are suspicious?
+   - Typosquatting (similar name to popular package)?
+   - Recent account takeover (version history changed)?
+   - Excessive permissions (postinstall scripts)?
+   - Minimal/obfuscated source code?
+
+4. **Build System as Trojan Delivery:** Are install hooks weaponized?
+   - Postinstall scripts that run arbitrary code?
+   - Build scripts that download/execute remote code?
+   - CI/CD configurations that expose secrets?
+
+5. **Git History as Cover-Up Indicator:** Were sensitive files hidden?
+   - Legitimate commits to .gitignore, then secrets added in later commits?
+   - Rewritten history (orphaned branches, force pushes)?
+   - Suspicious author metadata?
+
+If PRE-SCAN-RESULTS.json is NOT available, hunt manually:
+
+</step>
+
+<step name="scan_backdoors_manual">
 **Skip if focus excludes backdoors.**
 
 Hunt for hidden access points and undocumented functionality:

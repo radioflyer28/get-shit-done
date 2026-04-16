@@ -13,6 +13,30 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 <process>
 
+<step name="prescan">Run pre-scan orchestrator to collect deterministic tool findings before agent analysis.
+
+```bash
+# Execute pre-scan if available
+if [ -x "./get-shit-done/bin/security-prescan.sh" ]; then
+  echo "Running pre-scan orchestrator..."
+  ./get-shit-done/bin/security-prescan.sh . 2>&1
+  
+  if [ -f "PRE-SCAN-RESULTS.json" ]; then
+    echo "✓ Pre-scan findings collected in PRE-SCAN-RESULTS.json"
+    PRESCAN_FINDINGS=$(cat PRE-SCAN-RESULTS.json)
+  else
+    echo "⚠ Pre-scan did not produce results (tools may not be installed)"
+    PRESCAN_FINDINGS=""
+  fi
+else
+  echo "⚠ Pre-scan orchestrator not found at ./get-shit-done/bin/security-prescan.sh"
+  PRESCAN_FINDINGS=""
+fi
+```
+
+**Prescan Result:** Deterministic tool outputs (npm audit, semgrep, gitleaks, etc.) consolidated into normalized findings. Agent will receive these as structured input to focus on analysis rather than mechanical scanning.
+</step>
+
 <step name="initialize">
 Parse arguments:
 
