@@ -1,64 +1,150 @@
-# Requirements: GSD Skill Lifecycle Tooling
+# v1.1 Requirements: Security & Threat Scanner Tooling
 
-**Defined:** 2025-04-15
-**Core Value:** Every GSD skill meets a consistent quality bar — structurally correct, SMART-compliant, and improvable through a repeatable feedback loop.
+**Milestone:** v1.1 — Security & Threat Scanner Tooling  
+**Approved:** 2026-04-16  
+**Owner:** GSD Project  
+**Status:** Active (defining roadmap)
 
-## v1 Requirements
+---
 
-Requirements for milestone v1.0. Each maps to roadmap phases.
+## Overview
 
-### Shared Infrastructure
+Security and threat scanning must be operationalized through deterministic infrastructure (pre-scan orchestrator), language-specific pattern libraries, supply chain analysis, and CI integration. This milestone implements SEED-006 through SEED-010, transforming scanners from manual audit tools into continuous, production-grade security gates.
 
-- [ ] **INFRA-01**: `references/skill-smart-criteria.md` exists with SMART rubric (5 dimensions, sub-criteria, scoring 1-5, good/bad examples per dimension)
-- [ ] **INFRA-02**: `tests/skill-audit-conventions.test.cjs` validates all installed skills pass deterministic structural checks (frontmatter, paths, wiring)
-- [ ] **INFRA-03**: `references/skill-authoring.md` documents GSD skill file structure, conventions, platform compatibility matrix, and common anti-patterns
+**Total Requirements:** 22 (15 table stakes, 4 differentiators, 3 future)  
+**Estimate:** 5 phases, ~14 plans
 
-### Skill Scaffolding (`/gsd-build-skill` — SEED-001)
+---
 
-- [ ] **SCAFFOLD-01**: User can run `/gsd-build-skill` and interactively provide: skill name, one-sentence description, skill type (orchestrator / standalone / hybrid / informational)
-- [ ] **SCAFFOLD-02**: Workflow identifies reusable existing agents and surfaces them before creating new ones
-- [ ] **SCAFFOLD-03**: Tool permissions are validated against platform compatibility matrix
-- [ ] **SCAFFOLD-04**: Correct file scaffold is generated: `commands/gsd/{name}.md`, `get-shit-done/workflows/{name}.md`, and optionally `agents/gsd-{name}.md`, `get-shit-done/references/{name}*.md`
-- [ ] **SCAFFOLD-05**: Generated files pass SEED-003's structural integrity checks (or inline fallback if auditor not yet available)
-- [ ] **SCAFFOLD-06**: Registration prompts appear when new agents need adding to `agent-contracts.md` or model profiles
-- [ ] **SCAFFOLD-07**: Stub templates include SMART-compliant step patterns with `TODO:` markers
-- [ ] **SCAFFOLD-08**: Install validation via `node bin/install.js --dry-run` confirms new files are picked up
+## Requirements by Category
 
-### Skill Auditing (`/gsd-audit-skill` — SEED-003)
+### ORK: Pre-Scan Orchestration (SEED-006)
 
-- [ ] **AUDIT-01**: User can run `/gsd-audit-skill <name>` to audit a single skill, resolving all related files (command, workflow, agent, references)
-- [ ] **AUDIT-02**: Structural integrity checks run deterministically: frontmatter fields, `<objective>` tag, `<execution_context>` path resolution, step uniqueness, `Task()` agent resolution, `<required_reading>` path resolution, `text_mode` handling, path conventions
-- [ ] **AUDIT-03**: SMART compliance audit scores each dimension 1-5 with evidence: Specific (concrete actions), Measurable (observable outputs), Achievable (tool permission alignment), Relevant (objective coherence), Time-bound (execution bounds)
-- [ ] **AUDIT-04**: Prompt quality evaluation checks clarity, context sufficiency, guardrails, output format, error handling, and GSD anti-patterns (heredoc, overly long steps, mixed decision/execution)
-- [ ] **AUDIT-05**: GSD tool usage audit verifies `Task()` patterns, `AskUserQuestion` gates, `Bash()` safety, file operations, state management, hook integration
-- [ ] **AUDIT-06**: Report generated as `SKILL-AUDIT.md` with verdict (PASS/PASS WITH WARNINGS/FAIL), structural table, SMART scorecard, prompt findings, tool findings, remediation guidance
-- [ ] **AUDIT-07**: `--structural-only` flag runs only deterministic checks (fast, CI-suitable)
-- [ ] **AUDIT-08**: `--depth <quick|standard|deep>` controls audit depth (`quick` = deterministic structural checks only, `standard` = current full audit, `deep` = full audit with expanded evidence and stricter warning surfacing)
-- [ ] **AUDIT-09**: `--fix` flag routes findings to `/gsd-tune-skill` for remediation (requires SEED-002)
-- [ ] **AUDIT-10**: `--json` flag outputs findings as structured JSON for programmatic consumption
+**Purpose:** Hybrid bash/Python orchestrator offloads ~60% of mechanical scanning work before agent involvement, reducing costs and improving exhaustiveness.
 
-### Skill Tuning (`/gsd-tune-skill` — SEED-002)
+**Planned requirements:**
 
-- [ ] **TUNE-01**: User can run `/gsd-tune-skill <name>` with a symptom description (what happened, what should have happened)
-- [ ] **TUNE-02**: Diagnosis delegated to `/gsd-audit-skill` — tuner receives `SKILL-AUDIT.md` findings, not raw files
-- [ ] **TUNE-03**: When symptom is provided, audit findings are prioritized by relevance to the reported symptom
-- [ ] **TUNE-04**: `--transcript <path>` flag extracts friction signals from session transcript and cross-references against audit findings
-- [ ] **TUNE-05**: `gsd-skill-tuner` agent proposes minimal, targeted unified diff with rationale linking to specific audit findings
-- [ ] **TUNE-06**: Human review gate: Approve / Reject / Refine with up to 3 refinement iterations
-- [ ] **TUNE-07**: Approved edits committed with message format: `fix(skill): tune {skill-name} — {symptom summary}`
-- [ ] **TUNE-08**: Post-fix audit re-runs `/gsd-audit-skill --structural-only` to verify no regressions
-- [ ] **TUNE-09**: `--dry-run` flag shows proposed diff without applying
-- [ ] **TUNE-10**: `--batch` flag processes multiple issues from a file for milestone-scale quality sprints
+- [ ] **ORK-01**: Bash shim (`security-prescan.sh`) detects runtime environment (Node, Python, Go, etc.) and invokes Python orchestrator
+- [ ] **ORK-02**: Python orchestrator (`security_prescan.py`) uses `concurrent.futures.ProcessPoolExecutor` for parallel tool execution
+- [ ] **ORK-03**: Tool registry covers dep scanners (pip-audit, npm audit, cargo audit, trivy, osv-scanner)
+- [ ] **ORK-04**: Tool registry covers secret scanners (gitleaks, trufflehog, detect-secrets)
+- [ ] **ORK-05**: Tool registry covers SAST tools (semgrep, bandit, gosec, eslint-plugin-security)
+- [ ] **ORK-06**: Tool registry covers IaC scanners (hadolint, checkov, tfsec, kube-linter)
+- [ ] **ORK-07**: Tool registry covers binary/IOC analysis (file, strings, sha256sum)
+- [ ] **ORK-08**: Pre-scan produces unified `PRE-SCAN-RESULTS.json` with normalized findings and tool metadata
+- [ ] **ORK-09**: Workflow integration: `security-audit.md` and `threat-scan.md` accept pre-scan step and pass `<tool_findings>` to agent
+- [ ] **ORK-10**: Agent prompts for `gsd-security-scanner.md` and `gsd-threat-scanner.md` shift from "scan everything" to "analyze findings + reason about business logic + triage false positives"
 
-## v2 Requirements
+### SEC: Security Reference Sub-Skills (SEED-007)
 
-Deferred to future milestone. Tracked but not in current roadmap.
+**Purpose:** Evolve static markdown references into executable sub-skills with language-specific grep/semgrep patterns for precision vulnerability detection.
 
-### Autonomous Skill Tuning (SEED-004)
+**Planned requirements:**
 
-- **AUTO-01**: Autonomous skill improvement loop using Karpathy autoresearch pattern
-- **AUTO-02**: Audit scores as optimization metric for autonomous tuning
-- **AUTO-03**: Session transcript analysis for automatic friction detection
+- [ ] **SEC-01**: Create language-specific sub-skills: Python, JavaScript/TypeScript, Go, Rust, Java, C/C++, PHP
+- [ ] **SEC-02**: Each sub-skill includes OWASP Top 10 patterns translated into semgrep rules
+- [ ] **SEC-03**: Sub-skills embed executable grep patterns for each language's idiomatic vulnerability signatures
+- [ ] **SEC-04**: Sub-skill definitions can be invoked by pre-scan orchestrator and fed to agent with structured findings
+- [ ] **SEC-05**: Semgrep rules reference community sources (semgrep.dev) with version pins for reproducibility
+
+### THR: Adversarial Pattern Library (SEED-008)
+
+**Purpose:** Dedicated semgrep ruleset for detecting deliberately malicious code (C2 beacons, obfuscated shells, logic bombs, supply chain hooks).
+
+**Planned requirements:**
+
+- [ ] **THR-01**: Create `threat-patterns.yml` semgrep ruleset covering obfuscated reverse shells
+- [ ] **THR-02**: Add C2 beacon detection (HTTP callbacks, DNS exfiltration patterns)
+- [ ] **THR-03**: Add supply chain hook patterns (telemetry masquerading, installer post-install hooks)
+- [ ] **THR-04**: Add logic bomb detection (time-based triggers, doomsday clauses)
+- [ ] **THR-05**: Add language-specific adversarial patterns to reference sub-skills ("Threat Scan Patterns" sections)
+
+### FOR: Git Forensics (SEED-009)
+
+**Purpose:** First-class deep-dive agent/workflow for supply chain attack detection through commit history, binary objects, and author analysis.
+
+**Planned requirements:**
+
+- [ ] **FOR-01**: Git forensics analyzes commit history beyond surface-level commands (git log, reflog, branches)
+- [ ] **FOR-02**: Detects binary blobs lingering in git object database
+- [ ] **FOR-03**: Detects history rewrites and force-pushes via reflog analysis
+- [ ] **FOR-04**: Analyzes `.gitattributes` smudge/clean filters for code execution vectors
+- [ ] **FOR-05**: Detects author consistency anomalies (email/key mismatches, timezone/activity bursts, one-time critical contributors)
+- [ ] **FOR-06**: Produces `GIT-FORENSICS.md` report with actionable findings
+- [ ] **FOR-07**: Git forensics gate can be invoked standalone or integrated into threat scan workflow
+
+### OPS: Scanner Operational Excellence (SEED-010)
+
+**Purpose:** CI integration, baseline mode, supply chain intelligence, formalized quarantine, and SBOM generation for production-grade automated scanning.
+
+**Planned requirements:**
+
+- [ ] **OPS-01**: CI mode for scanning on lockfile changes (package.json, requirements.txt, Gemfile, etc.)
+- [ ] **OPS-02**: Baseline file (detect-secrets style) allows "previously reviewed, still present" state to reduce noise
+- [ ] **OPS-03**: Supply chain intelligence: Read-only APIs (OSV, deps.dev, GitHub Advisory) for package reputation pre-install
+- [ ] **OPS-04**: Quarantine workflow: Formal protocol for flagged files (location, report format, release procedure)
+- [ ] **OPS-05**: SBOM generation via `syft`/`cyclonedx-cli` for known-inventory tracking
+- [ ] **OPS-06**: Scan state tracking (baseline ID, previous scan results, delta reporting)
+- [ ] **OPS-07**: `/gsd-security-audit --ci` mode for automated pipelines
+- [ ] **OPS-08**: `/gsd-threat-scan --ci` mode with deterministic output format
+
+---
+
+## Traceability
+
+| Requirement | Category | Seeds | Phase |
+|-------------|----------|-------|-------|
+| ORK-01 through ORK-10 | Pre-Scan Orchestration | SEED-006 | Phase 1 |
+| SEC-01 through SEC-05 | Security Patterns | SEED-007 | Phase 2 |
+| THR-01 through THR-05 | Threat Patterns | SEED-008 | Phase 3 |
+| FOR-01 through FOR-07 | Git Forensics | SEED-009 | Phase 4 |
+| OPS-01 through OPS-08 | Operational Excellence | SEED-010 | Phase 5 |
+
+---
+
+## Success Criteria
+
+**v1.1 is complete when:**
+
+1. ✅ Pre-scan orchestrator (ORK) is production-ready and reduces agent token usage by 50%+ on typical scans
+2. ✅ Security and threat pattern libraries (SEC, THR) enable deterministic, reproducible scanning
+3. ✅ Git forensics (FOR) catches supply chain attacks missed by surface-level analysis
+4. ✅ Operational modes (OPS) allow seamless CI integration with baseline/quarantine support
+5. ✅ All 22 requirements satisfied with 60+ integration tests passing
+6. ✅ Cross-phase integration: Pre-scan → Pattern matching → Forensics → Agent reasoning → Operational output
+
+---
+
+## Dependency Notes
+
+- **ORK is foundational:** SEC, THR, FOR all depend on ORK's `PRE-SCAN-RESULTS.json` schema
+- **SEC and THR are parallel:** Both pattern libraries feed into pre-scan tool registry (ORK step 3-7)
+- **FOR builds on ORK:** Adds git-specific analysis after pre-scan
+- **OPS aggregates:** Bundles ORK+SEC+THR+FOR with CI, baseline, and quarantine infrastructure
+
+---
+
+## Future Work (v1.2+)
+
+- [ ] External SBOM repository integration
+- [ ] Telemetry-driven pattern quality scoring
+- [ ] Automated remediation suggestions (not just detection)
+- [ ] Multi-repo scanning orchestration
+- [ ] Historical trend analysis and anomaly detection
+
+---
+
+## Out of Scope (v1.1)
+
+- Autonomous scanner improvement (SEED-004) — Requires v1.1 manual infrastructure to stabilize first
+- Skill marketplace — Separate concern from scanner tooling
+- Real-time monitoring dashboards — Covered in v1.2 with telemetry backend
+
+---
+
+**Defined:** 2026-04-16  
+**Owner:** GSD Project  
+**Next Step:** Roadmap creation (Phase numbering and task breakdown)
 
 ### Ecosystem
 

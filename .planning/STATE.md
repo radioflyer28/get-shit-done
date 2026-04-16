@@ -1,53 +1,46 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-current_phase: 05
-current_plan: 1
-status: executing
-last_updated: "2026-04-16T00:49:03.604Z"
+milestone: v1.1
+milestone_name: Security & Threat Scanner Tooling
+current_phase: null
+current_plan: null
+status: defining_requirements
+last_updated: "2026-04-16"
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 10
-  percent: 77
+  total_phases: null
+  completed_phases: 0
+  total_plans: null
+  completed_plans: 0
+  percent: 0
 ---
 
 # GSD State
 
 ## Current Milestone
 
-**Version:** v1.0
-**Name:** Skill Lifecycle Tooling
-**Status:** Executing Phase 05
-**Seeds:** SEED-001, SEED-002, SEED-003
+**Version:** v1.1
+**Name:** Security & Threat Scanner Tooling
+**Status:** Defining Requirements
+**Seeds:** SEED-006, SEED-007, SEED-008, SEED-009, SEED-010
 
 ## Phase Progress
 
-| Phase | Status | Plans |
-|-------|--------|-------|
-| 1. Shared Infrastructure | ✅ Complete | 3/3 |
-| 2. Skill Auditor Core | ✅ Complete | 2/2 |
-| 3. Auditor Extensions | Context complete | TBD |
-| 4. Skill Scaffolder | Not started | TBD |
-| 5. Skill Tuner | Not started | TBD |
-
-**Current Phase:** 05
-**Current Plan:** 1
-**Progress:** 40% (2/5 phases)
+(Roadmap pending — defining requirements first)
 
 ## Completed Milestones
 
-(None)
+✅ **v1.0: Skill Lifecycle Tooling** (2026-04-16)
+- 5 phases, 13 plans, 33/33 requirements satisfied
+- All 52 integration tests passing
+- `/gsd-build-skill`, `/gsd-audit-skill`, `/gsd-tune-skill` shipped and validated
 
 ## Key Decisions
 
-| Decision | Phase | Rationale |
-|----------|-------|-----------|
-| Auditor is shared evaluation backbone | All | Avoids duplicate diagnosis logic |
-| SMART criteria as quality framework | Phase 1 | 5-dimension rubric maps well to prompt quality |
-| Surgical diffs over rewrites | Phase 5 | Minimizes unintended side effects |
+| Decision | Milestone | Rationale |
+|----------|-----------|-----------|
+| Pre-scan orchestrator as v1.1 foundation | v1.1 | Solves token cost and coverage holistically before adding features |
+| Deterministic infrastructure over LLM variance | v1.1 | Mechanical scanning must be reproducible |
+| Semgrep + community rules | v1.1 | Leverage battle-tested rulesets vs hand-crafted patterns |
 | Audit before scaffold/tune | Phases 2-3 | Auditor must exist for scaffolder validation and tuner diagnosis |
 
 ## Accumulated Context

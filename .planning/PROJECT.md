@@ -1,58 +1,111 @@
-# GSD Skill Lifecycle Tooling
+# GSD Project
 
 ## What This Is
 
-Tooling for the complete GSD skill lifecycle — create, audit, and tune skills through guided workflows and specialist agents. GSD skills are the "programs" that agents execute; this milestone adds the infrastructure to build them correctly, validate they meet quality standards, and improve them systematically when issues surface.
+GSD is a meta-prompting framework for AI agents — tools, workflows, and skills that enable coordinated multi-agent work on complex software projects. This project builds three primary capability areas:
 
-## Core Value
+1. **Skill Lifecycle Tooling** (v1.0 ✅) — Create, audit, and tune skills through guided workflows
+2. **Security & Threat Scanner Tooling** (v1.1 🔨) — Deterministic pre-scan orchestrator, reference-based pattern matching, git forensics, and operational CI integration
+3. **Autonomous Skills & Ecosystem** (v2.0 🔮) — Autoresearch-driven improvement, marketplace, and external integrations
 
-Every GSD skill meets a consistent quality bar — structurally correct, SMART-compliant, and improvable through a repeatable feedback loop.
+## Core Values
+
+- **Quality by design:** Every GSD skill meets a consistent quality bar (SMART-compliant, structurally sound, improvable)
+- **Security first:** Code auditing and threat detection are built-in, not bolted-on
+- **Operational readiness:** Tools integrate into CI, dashboards, and production workflows
+
+## Current Milestone: v1.1 — Security & Threat Scanner Tooling
+
+**Goal:** Operationalize code security and threat scanning through deterministic pre-scan orchestration, language-specific pattern libraries, and CI integration.
+
+**Target features:**
+- Pre-scan orchestrator (SEED-006) — Hybrid bash/Python layer offloading ~60% of mechanical scanning work
+- Security reference sub-skills (SEED-007) — Executable language-specific vulnerability patterns  
+- Adversarial pattern library (SEED-008) — Semgrep ruleset for threat detection
+- Git forensics agent (SEED-009) — Supply chain attack analysis
+- Scanner operational excellence (SEED-010) — CI integration, baselines, supply chain intelligence, quarantine workflows
+
+**Key context:** v1.0 shipped with skill lifecycle tooling (build/audit/tune); v1.1 focuses on making scanners production-grade through deterministic infrastructure and formal operational patterns.
+
+## Previous Milestone: v1.0 (Shipped 2026-04-16)
+
+✅ **All v1.0 features shipped and validated (2026-04-16)**
+
+The complete skill lifecycle is now available:
+
+- ✅ Guided skill scaffolding via `/gsd-build-skill` (SEED-001) — Creates convention-compliant skills with interactive guidance
+- ✅ Skill quality auditing via `/gsd-audit-skill` (SEED-003) — Comprehensive quality reports (structural, SMART, prompt, tool checks)
+- ✅ Human-in-the-loop skill tuning via `/gsd-tune-skill` (SEED-002) — Symptom-driven improvement with audit backing and regression safety
+- ✅ Shared SMART criteria rubric (`references/skill-smart-criteria.md`) — 5-dimension quality framework
+- ✅ Convention validation test suite (`tests/skill-audit-conventions.test.cjs`) — Validates all skills pass structural checks
+- ✅ Audit extensions (CI-ready flags, depth control, fix routing, JSON output) — Production-ready auditing
+- ✅ Batch mode for tuner (`--batch`) — Multi-skill improvement at milestone scale
+- ✅ Transcript extraction for tuner (`--transcript`) — Friction signals from real sessions improve diagnosis
+
+**Metrics:**
+- 5 phases, 13 plans, 33/33 requirements satisfied
+- 52 integration tests created
+- Shipped: 2026-04-16 (2-day sprint from 2026-04-15)
+- Audit: Passed (all requirements verified, cross-phase integration verified, E2E workflows complete)
 
 ## Requirements
 
-### Validated
+### Validated (v1.0 Shipped)
 
-(None yet — ship to validate)
+- ✓ Guided skill scaffolding via `/gsd-build-skill` (SEED-001)
+- ✓ Skill quality auditing via `/gsd-audit-skill` (SEED-003)
+- ✓ Human-in-the-loop skill tuning via `/gsd-tune-skill` (SEED-002)
+- ✓ Shared SMART criteria rubric (`references/skill-smart-criteria.md`)
+- ✓ Convention validation test suite (`tests/skill-audit-conventions.test.cjs`)
 
-### Active
+### Active (v1.1 Current)
 
-- [ ] Guided skill scaffolding via `/gsd-build-skill` (SEED-001)
-- [ ] Skill quality auditing via `/gsd-audit-skill` (SEED-003)
-- [ ] Human-in-the-loop skill tuning via `/gsd-tune-skill` (SEED-002)
-- [ ] Shared SMART criteria rubric (`references/skill-smart-criteria.md`)
-- [ ] Convention validation test suite (`tests/skill-audit-conventions.test.cjs`)
+- [ ] Pre-scan orchestrator (bash/Python hybrid) (SEED-006)
+- [ ] Security reference sub-skills — executable patterns (SEED-007)
+- [ ] Adversarial pattern library — threat detection semgrep rules (SEED-008)
+- [ ] Git forensics agent — supply chain analysis (SEED-009)
+- [ ] Scanner operational excellence — CI, baselines, quarantine, SBOM (SEED-010)
 
-### Out of Scope
+### Future (v1.2+)
 
-- Autonomous skill tuning (SEED-004) — deferred to future milestone; requires manual tuning to be proven first
-- Skill marketplace or registry — no sharing mechanism in v1
-- External contributor onboarding flows — build-skill handles creation, not contributor docs
-- Scanner-related seeds (SEED-006 through SEED-010) — separate concern, separate milestone
+- [ ] Autonomous skill tuning (SEED-004)
+- [ ] Skill marketplace and registry
+- [ ] Performance optimization for large scale operations
+
+### Out of Scope (v1.1)
+
+- Autonomous scanner improvement — focus on deterministic infrastructure first
+- Supply chain intelligence beyond API integration — external dependency tracking in v1.2
 
 ## Context
 
-- GSD is a meta-prompting system for AI coding agents (Claude Code, Copilot, Gemini CLI, etc.)
-- Skills are multi-file artifacts: `SKILL.md` + `workflow.md` + `commands/gsd/*.md` + optional agents + references
-- There are 50+ existing skills — conventions are implicit, no formal validation exists
-- SEED-003 (auditor) is the shared evaluation backbone — SEED-002 delegates diagnosis to it
-- Skill lifecycle order: create (001) → audit (003) → tune (002)
-- The `gsd-skill-tuner` agent is shared between SEED-002 (interactive) and future SEED-004 (autonomous)
+- **Previous milestone (v1.0):** Built skill lifecycle tooling (build/audit/tune)
+- **Current milestone (v1.1):** Security & threat scanning infrastructure
+- **Scanner challenge:** Current scanners are agent-driven, expensive (high token usage), and incomplete (miss tool-specific coverage)
+- **Solution:** Pre-scan orchestrator (SEED-006) + pattern libraries (SEED-007, SEED-008) + git forensics (SEED-009) + operational framework (SEED-010)
+- **Dependency order:** SEED-006 (orchestrator) enables SEED-007/008/009 (patterns/forensics) → SEED-010 (operations) aggregates them
 
 ## Constraints
 
-- **Multi-runtime**: Skills must work across Claude Code, Copilot, Gemini CLI, and other supported runtimes — scaffolder and auditor must validate cross-platform compatibility
-- **Existing conventions**: Must align with the 50+ existing skills — don't invent new patterns, codify what works
-- **Non-destructive**: Tuner edits are surgical diffs, not rewrites — never regress other SMART dimensions
-- **Test infrastructure**: Convention tests run via `vitest` with existing `tests/` patterns (`.test.cjs` files)
+- **Determinism required:** Pre-scan output must be reproducible — no LLM variance in mechanical scans
+- **Tool coverage:** Support major ecosystems (Node/npm, Python/pip, Go, Rust, etc.) and scan types (deps, secrets, SAST, IaC, binary)
+- **Token efficiency:** Offload 60%+ of mechanical work from LLM to local tools before agent sees data
+- **Backward compatibility:** Don't break existing `/gsd-security-audit` and `/gsd-threat-scan` — extend them with pre-scan layer
+- **Operational readiness:** CI integration, baseline management, and quarantine workflows must be production-grade from day one
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| SEED-003 auditor is shared backbone | Avoids duplicate diagnosis logic in tuner and future autoresearch | — Pending |
-| SMART criteria as evaluation framework | Specific, Measurable, Achievable, Relevant, Time-bound maps well to prompt quality | — Pending |
-| Surgical diffs over full rewrites | Minimizes risk of unintended side effects when tuning skills | — Pending |
-| Shared `skill-smart-criteria.md` reference | Single source of truth for rubric; ships with whichever seed lands first | — Pending |
+| Pre-scan orchestrator as foundation | Solves token cost and coverage problems holistically before adding features | 🔨 Implementing in Phase 1 (SEED-006) |
+| Semgrep + community rules over custom patterns | Leverage battle-tested, maintained ruleset rather than hand-crafted patterns | Planned in SEED-007, SEED-008 |
+| Git forensics as first-class gate | Supply chain attacks require deep history analysis that surface-level git commands miss | Planned in SEED-009 |
+| Operational model (CI, baselines, quarantine) | Make scanning safe for automated pipelines, not just manual audits | Planned in SEED-010 |
 
----
-*Last updated: 2025-04-15 after milestone v1.0 initialization*
+## What's Next
+
+- **Phase 1 (SEED-006):** Pre-scan orchestrator — bash shim + Python orchestrator + tool registry
+- **Phase 2 (SEED-007):** Security patterns — language-specific sub-skills with executable rules
+- **Phase 3 (SEED-008):** Threat patterns — adversarial detection ruleset
+- **Phase 4 (SEED-009):** Git forensics — supply chain analysis
+- **Phase 5 (SEED-010):** Operational excellence — CI, baselines, intelligence, quarantine
