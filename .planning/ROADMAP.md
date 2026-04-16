@@ -67,6 +67,20 @@ Plans:
 - [ ] 09-01-PLAN.md — Git history analysis, binary blob detection, history rewrite detection, author anomalies, GIT-FORENSICS.md output + threat-scan integration
 
 **Status:** Planned. Execute after Phase 8.
+
+## Phase 10: Scanner Operational Excellence (Planned)
+
+**Goal:** CI integration, baseline mode, supply chain intelligence, quarantine workflows, and SBOM generation for production-grade automated scanning (OPS-01 to OPS-08).
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — CI mode (--ci flag) for security-audit + threat-scan; lockfile change detection via scan_ci.sh; CI_RESULTS.json output (OPS-01, OPS-07, OPS-08)
+- [ ] 10-02-PLAN.md — Baseline file support (.gsd-baseline.json); scan state tracking (.gsd-scan-state.json); delta reporting (new/resolved/accepted) (OPS-02, OPS-06)
+- [ ] 10-03-PLAN.md — Supply chain intelligence: OSV, deps.dev, GitHub Advisory APIs in parallel; SUPPLY-CHAIN-INTEL.json; wired into security-audit.md (OPS-03)
+- [ ] 10-04-PLAN.md — SBOM generation via syft/cyclonedx-cli (--sbom flag); formalized quarantine protocol with release procedure (OPS-04, OPS-05)
+
+**Status:** Planned. Execute after Phase 9.
 ## Quick Links
 
 - **v1.1 Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md)
