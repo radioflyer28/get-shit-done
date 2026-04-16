@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Defining Requirements
-last_updated: "2026-04-16T02:39:27.756Z"
+milestone: v1.1
+milestone_name: Security & Threat Scanner Tooling
+status: In Progress
+last_updated: "2026-04-15T00:00:00.000Z"
 progress:
-  total_phases: 1
+  total_phases: 8
   completed_phases: 1
   total_plans: 1
   completed_plans: 1
-  percent: 100
+  percent: 12
 ---
 
 # GSD State
@@ -18,12 +18,14 @@ progress:
 
 **Version:** v1.1
 **Name:** Security & Threat Scanner Tooling
-**Status:** Defining Requirements
+**Status:** In Progress
 **Seeds:** SEED-006, SEED-007, SEED-008, SEED-009, SEED-010
 
 ## Phase Progress
 
-(Roadmap pending — defining requirements first)
+| Phase | Name | Status | Plans |
+|-------|------|--------|-------|
+| 08 | Threat Adversarial Pattern Library | ✅ Complete | 1/1 |
 
 ## Completed Milestones
 
@@ -37,12 +39,24 @@ progress:
 
 | Decision | Milestone | Rationale |
 |----------|-----------|-----------|
-| Pre-scan orchestrator as v1.1 foundation | v1.1 | Solves token cost and coverage holistically before adding features |
+| Pre-scan orchestrator as v1.1 foundation | v1.1 | Solves token cost and coverage holistically |
 | Deterministic infrastructure over LLM variance | v1.1 | Mechanical scanning must be reproducible |
 | Semgrep + community rules | v1.1 | Leverage battle-tested rulesets vs hand-crafted patterns |
-| Audit before scaffold/tune | Phases 2-3 | Auditor must exist for scaffolder validation and tuner diagnosis |
+| Audit before scaffold/tune | Phases 2-3 | Auditor must exist for scaffolder validation |
+| Semgrep YAML as pattern source of truth | v1.1 Phase 8 | Agent reasons about findings, does not re-scan |
+| shell/powershell security refs created from scratch | v1.1 Phase 8 | Files did not pre-exist |
 
 ## Accumulated Context
+
+### Completed in Phase 8
+
+- 25-rule semgrep adversarial ruleset (threat-patterns.yml) covering 6 threat categories
+- 5 language reference files with ## Threat Scan Patterns sections
+- security_prescan.py extended with threat_semgrep tool registry entry
+- gsd-threat-scanner.md updated with pattern_library context and tool_findings analysis
+- threat-scan.md updated: passes threat_semgrep findings in tool_findings block
+- 20 passing integration tests (30 total, 10 pending semgrep CLI install)
+- Requirements satisfied: THR-01, THR-02, THR-03, THR-04, THR-05
 
 ### Blockers
 
@@ -53,4 +67,4 @@ progress:
 (None)
 
 ---
-*Last updated: 2025-04-15 after roadmap creation*
+*Last session: 2026-04-15 — Completed Phase 8 Plan 1 (threat-patterns.yml + integration)*
