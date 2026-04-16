@@ -327,6 +327,169 @@ Options:
 
 ---
 
+## Batch Mode Processing
+
+**Activation:** When `--batch <file>` flag is provided.
+
+**Overview:**
+1. Load multiple (skill, symptom) pairs from JSON file
+2. Invoke audits for all skills in parallel
+3. Generate diffs upfront (tuner invoked once per issue)
+4. Present ALL proposed diffs together (grouped by skill)
+5. Unified approval gate (approve all, partial, or none)
+6. Apply selected diffs atomically in one commit
+7. Verify all modified skills with `--structural-only` audit
+
+**Batch File Format:**
+```json
+[
+  {"skill": "gsd-auditor", "symptom": "Timeout on large input"},
+  {"skill": "gsd-executor", "symptom": "Missing retry logic"},
+  {"skill": "gsd-planner", "symptom": "Unclear error messages"}
+]
+```
+
+**Batch Workflow Execution:**
+
+1. **Load and validate batch file**
+   - Parse JSON from --batch file
+   - Validate each entry has "skill" and "symptom"
+   - Error if malformed: show example format
+
+2. **Parallel audit invocation**
+   - For each issue: invoke `gsd-audit-skill {skill}` in background
+   - Collect all SKILL-AUDIT.md outputs
+   - On audit failure for an issue: skip that skill, continue
+
+3. **Generate all diffs upfront**
+   - For each issue, invoke tuner agent once with:
+     - skill name
+     - symptom
+     - audit findings path
+     - iteration_count: 1 (no refinement in initial generation)
+   - Collect all proposed diffs per issue
+
+4. **Unified review presentation**
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BATCH REVIEW: 3 skills, 5 proposed changes
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   [gsd-auditor]
+   - Finding: Timeout handling
+     Proposed: Add explicit error handler for 30s timeout
+   - Finding: Unclear error messages
+     Proposed: Expand error text with context and recovery steps
+   
+   [gsd-executor]
+   - Finding: Missing retry logic
+     Proposed: Add exponential backoff for transient failures
+   
+   [gsd-planner]
+   - Finding: No validation strategy
+     Proposed: Add SMART dimension scoring
+   
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
+
+5. **Bulk approval options**
+   - `Approve all` — Apply all {N} diffs
+   - `Approve selected` — Choose per-skill (checkboxes or individual questions)
+   - `Reject all` — Don't apply any
+
+6. **Atomic commit**
+   ```bash
+   git add {all_modified_files}
+   git commit -m "fix(batch): tune 3 skills — timeout handling + retry logic + clarity"
+   ```
+   Message format: `fix(batch): tune {count} skills — {comma-separated themes}`
+
+7. **Batch verification**
+   - For each modified skill: `gsd-audit-skill {skill} --structural-only`
+   - Collect results and report:
+     ```
+     Verified 3 skills — all passed structural checks
+     ```
+   - On failure: Revert last commit and report which skill failed
+
+**Batch Mode Refinement:**
+- If user requests refinement during batch review, refinement applies to ALL diffs in that batch
+- Tuner is invoked once per issue with the refinement_instruction
+- New diffs presented together; user re-approves in bulk
+
+---
+
+## Transcript Extraction
+
+**Activation:** When `--transcript <path>` flag is provided.
+
+**Overview:**
+Transcript files (session logs, error recordings, markdown notes) often contain implicit signals about skill problems. Transcript extraction parses these signals and augments the user's direct symptom description, improving semantic finding prioritization.
+
+**Supported formats:**
+- Plain text files (.txt)
+- JSON logs (array or object format)
+- Markdown (.md) with code blocks and stacktraces
+- Unstructured logs (timestamp lines, error messages mixed)
+
+**Friction signal extraction:**
+
+1. **Error keywords** (severity: high)
+   - "timeout", "fail", "error", "exception", "undefined", "null", "crash", "panic"
+   - Each occurrence scored by context (proximity to skill name increases relevance)
+
+2. **Performance keywords** (severity: medium)
+   - "slow", "hang", "freeze", "unresponsive", "delay", "lag", "stuck"
+
+3. **Clarity keywords** (severity: low)
+   - "unclear", "confusing", "ambiguous", "unexpected", "misleading", "wrong"
+
+4. **User intent markers** (severity: variable)
+   - "should", "must", "needs to", "always", "never", "must not"
+
+**Extraction process:**
+
+1. Read transcript from --transcript path
+2. Split into lines; look for friction patterns
+3. Extract matching keywords with surrounding context (e.g., 2-3 words before/after)
+4. Group by keyword category (error, performance, clarity, intent)
+5. Weight by severity and frequency
+6. Truncate to last 5000 characters (or ~100 lines) to keep augmented symptom focused
+7. Warn user: "Transcript will be analyzed. Ensure no sensitive data included."
+
+**Symptom augmentation example:**
+
+Original symptom: "Times out on large input"
+
+Extracted signals from transcript:
+```
+error keywords: ["timeout:3", "hang:2"]
+performance: ["slow:1", "unresponsive:1"]
+intent: ["should retry:2"]
+```
+
+Augmented symptom for semantic ranking:
+```
+"Times out on large input. Session showed timeout errors (3 occurrences), 
+hanging behavior, slow/unresponsive execution. Should implement retry logic."
+```
+
+**Safety caps:**
+- Truncate raw transcript to last 5000 chars before extraction
+- Warn before processing: "Transcript contains potential PII. Ensure safe before proceeding."
+- Do NOT log transcript content to commits or reports
+- Extract only friction signals; never leak original transcript data
+
+**Integration with single-skill and batch modes:**
+- Single-skill: Augmented symptom passed to tuner agent (improves semantic ranking)
+- Batch mode: Each issue can optionally have a transcript augmentation applied independently
+
+---
+
+</process>
+
+---
+
 *Workflow: tune-skill*
 *Invoked by: /gsd-tune-skill command*
 *Coordinates: gsd-skill-tuner agent + gsd-audit-skill command*
