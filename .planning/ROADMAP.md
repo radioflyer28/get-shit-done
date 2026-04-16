@@ -45,6 +45,17 @@
 
 **Status:** All plans complete. Execution ready.
 
+
+## Phase 8: Threat Adversarial Pattern Library (Planned)
+
+**Goal:** Semgrep ruleset for detecting deliberately malicious code (THR-01 to THR-05).
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 08-01-PLAN.md — Full adversarial ruleset: obfuscation, C2 beacons, supply chain hooks, logic bombs + per-language threat sections + orchestrator/agent wiring
+
+**Status:** Planned. Execute after Phase 7.
 ## Quick Links
 
 - **v1.1 Requirements:** [REQUIREMENTS.md](REQUIREMENTS.md)
