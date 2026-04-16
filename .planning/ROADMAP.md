@@ -18,15 +18,15 @@
 
 ## Current Focus
 
-**v1.1 Defining** — Security & threat scanner operationalization through deterministic infrastructure.
+**v1.1 In Progress** — Security & threat scanner operationalization through deterministic infrastructure.
 
-**Status:** Defining requirements (22 table stakes + future items mapped to 5 phases, roadmapping in progress)
+**Status:** Phase 6 complete (28/28 tests passing, all ORK requirements verified). Phase 7 planning ready.
 
 ## Phases in v1.1 (Planned)
 
 | Phase | Title | Goal | Requirements | Status |
 |-------|-------|------|--------------|--------|
-| 6 | Pre-Scan Orchestrator | Hybrid bash/Python layer offloads mechanical scanning | ORK-01 to ORK-10 | Not started |
+| 6 | Pre-Scan Orchestrator | Hybrid bash/Python layer offloads mechanical scanning | ORK-01 to ORK-10 | ✅ Complete (2026-04-15) |
 | 7 | Security Patterns | Language-specific executable vulnerability rules | SEC-01 to SEC-05 | Not started |
 | 8 | Threat Patterns | Adversarial/malicious code detection ruleset | THR-01 to THR-05 | Not started |
 | 9 | Git Forensics | Supply chain attack analysis via commit history | FOR-01 to FOR-07 | Not started |
