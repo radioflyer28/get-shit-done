@@ -20,17 +20,30 @@
 
 **v1.1 In Progress** — Security & threat scanner operationalization through deterministic infrastructure.
 
-**Status:** Phase 6 complete (28/28 tests passing, all ORK requirements verified). Phase 7 planning ready.
+**Status:** Phase 6 complete (28/28 tests passing, all ORK requirements verified). Phase 7 planned (4 plans, all SEC requirements covered). Phase 7 execution ready.
 
 ## Phases in v1.1 (Planned)
 
 | Phase | Title | Goal | Requirements | Status |
 |-------|-------|------|--------------|--------|
 | 6 | Pre-Scan Orchestrator | Hybrid bash/Python layer offloads mechanical scanning | ORK-01 to ORK-10 | ✅ Complete (2026-04-15) |
-| 7 | Security Patterns | Language-specific executable vulnerability rules | SEC-01 to SEC-05 | Not started |
+| 7 | Security Patterns | Language-specific executable vulnerability rules | SEC-01 to SEC-05 | 🔨 Planned (2026-04-17) |
 | 8 | Threat Patterns | Adversarial/malicious code detection ruleset | THR-01 to THR-05 | Not started |
 | 9 | Git Forensics | Supply chain attack analysis via commit history | FOR-01 to FOR-07 | Not started |
 | 10 | Scanner Operations | CI integration, baselines, quarantine, SBOM | OPS-01 to OPS-08 | Not started |
+
+
+## Phase 7: Security Patterns (Planned)
+
+**Goal:** Implement language-specific executable vulnerability rules (SEC-01 to SEC-05).
+
+**4 Plans Ready:**
+- 07-01-PLAN.md — Injection attack patterns (SQL, command, template)
+- 07-02-PLAN.md — Authentication/session vulnerability patterns
+- 07-03-PLAN.md — Cryptographic weakness patterns
+- 07-04-PLAN.md — Data exposure & storage patterns
+
+**Status:** All plans complete. Execution ready.
 
 ## Quick Links
 
@@ -43,4 +56,8 @@
 ---
 
 *Roadmap updated for v1.1 milestone start (2026-04-16)*
-*Next Step: Plan Phase 6 via `/gsd-plan-phase 6`*
+*Next Step: Execute Phase 7 via `/gsd-execute-phase 07` or continue planning Phase 8*
+
+
+
+
