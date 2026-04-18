@@ -194,6 +194,20 @@ If PRE-SCAN-RESULTS.json is NOT available, hunt manually:
 
 </step>
 
+<agent_discretion>
+**IMPORTANT — Beyond the Checklist:**
+The scan steps below provide baseline pattern coverage to prevent obvious misses.
+They are NOT exhaustive. You SHOULD also apply your own threat expertise:
+- Novel attack vectors and evasion techniques not covered by these patterns
+- Contextual reasoning about what makes sense (or doesn't) for THIS specific codebase
+- Emerging TTPs (MITRE ATT&CK, recent supply chain incidents, new obfuscation methods)
+- Behavioral anomalies: code that is *technically legitimate* but *contextually suspicious*
+  (e.g., a math library making HTTP calls, a CLI tool reading browser cookies)
+
+Report findings from your own analysis alongside pattern matches. Your adversarial
+reasoning is the primary value — the patterns below are scaffolding.
+</agent_discretion>
+
 <step name="scan_backdoors_manual">
 **Skip if focus excludes backdoors.**
 

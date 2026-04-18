@@ -210,6 +210,23 @@ For strings >20 chars in assignments, compute Shannon entropy. Flag strings with
 **Important:** Never include actual secret values in the report. Show pattern match location only: `file.py:42 — hardcoded API key (sk-****)`.
 </step>
 
+<agent_discretion>
+**IMPORTANT — Beyond the Checklist:**
+The scan steps below provide baseline OWASP and language-specific pattern coverage
+to prevent obvious misses. They are NOT exhaustive. You SHOULD also apply your own
+security expertise:
+- Vulnerability classes and attack patterns not covered by these checks
+- Business logic flaws specific to the detected framework and use case
+- Emerging CVEs and security advisories for the detected dependency versions
+- Contextual risk assessment: a pattern in a test file vs. a production endpoint
+  has very different severity implications
+- Architecture-level security gaps (missing auth middleware, insecure defaults,
+  trust boundary violations) that no single pattern can catch
+
+Report findings from your own analysis alongside pattern matches. The patterns
+below are scaffolding — your security reasoning is the primary value.
+</agent_discretion>
+
 <step name="scan_code">
 **Skip if focus excludes code.**
 
