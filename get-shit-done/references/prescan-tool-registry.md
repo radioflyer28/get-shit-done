@@ -29,13 +29,13 @@ The pre-scan orchestrator runs the following categories of tools:
 ### pip-audit
 - **Type:** dep-scanner
 - **Runtime:** Python
-- **Command:** `pip-audit --desc --format json`
+- **Command:** `uvx pip-audit --desc --format json` (falls back to `pip-audit --desc --format json` if `uvx` not available)
 - **Required Files:** `requirements.txt` OR `setup.py` OR `pyproject.toml`
 - **Output Format:** JSON with vulnerabilities array
 - **Severity Mapping:** OSV severities → normalized
 - **False Positive Rate:** ~8% (mostly severity misclassification)
 - **Execution Time:** 3–8 seconds
-- **Notes:** Checks Python.org advisory database; requires pip >= 23.0
+- **Notes:** Checks Python.org advisory database; runs zero-install via uvx when available
 
 ### cargo audit
 - **Type:** dep-scanner

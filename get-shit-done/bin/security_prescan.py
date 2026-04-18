@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Security Pre-Scan Orchestrator - deterministic tool execution + JSON normalization."""
-import json, os, sys, subprocess, concurrent.futures, time
+import json, os, sys, subprocess, concurrent.futures, time, shutil
 from pathlib import Path
 from datetime import datetime
 import uuid
@@ -9,7 +9,7 @@ class PrescanOrchestrator:
     """Parallel security tool orchestrator."""
     TOOL_REGISTRY = {
         "npm_audit": {"type": "dep-scanner", "runtimes": ["node", "mixed"], "cmd": ["npm", "audit", "--json"]},
-        "pip_audit": {"type": "dep-scanner", "runtimes": ["python", "mixed"], "cmd": ["pip-audit", "--desc", "--format", "json"]},
+        "pip_audit": {"type": "dep-scanner", "runtimes": ["python", "mixed"], "cmd": ["uvx", "pip-audit", "--desc", "--format", "json"], "cmd_fallback": ["pip-audit", "--desc", "--format", "json"]},
         "cargo_audit": {"type": "dep-scanner", "runtimes": ["rust", "mixed"], "cmd": ["cargo", "audit", "--json"]},
         "semgrep": {"type": "sast", "runtimes": ["node", "python", "go", "mixed"], "cmd": ["semgrep", "--json", "."]},
         "bandit": {"type": "sast", "runtimes": ["python", "mixed"], "cmd": ["bandit", "-r", ".", "-f", "json"]},
@@ -53,7 +53,11 @@ class PrescanOrchestrator:
                         "errors": [f"threat-patterns.yml not found at {rule_file}"],
                         "status": "skipped", "reason": "threat-patterns.yml not found"
                     }
-            result = subprocess.run(config["cmd"], cwd=self.target_dir, capture_output=True, timeout=timeout, text=True)
+            cmd = config["cmd"]
+            # Use fallback cmd if primary executable is not available
+            if "cmd_fallback" in config and not shutil.which(cmd[0]):
+                cmd = config["cmd_fallback"]
+            result = subprocess.run(cmd, cwd=self.target_dir, capture_output=True, timeout=timeout, text=True)
             tool_result = {
                 "tool_name": name, "tool_type": config["type"], "exit_code": result.returncode,
                 "execution_time_ms": int((time.time() - start) * 1000), "errors": [] if result.returncode == 0 else [result.stderr],
@@ -74,12 +78,13 @@ class PrescanOrchestrator:
         except subprocess.TimeoutExpired:
             return {"tool_name": name, "tool_type": config["type"], "exit_code": -1, "execution_time_ms": int((time.time() - start) * 1000), "errors": ["Timeout"]}
         except FileNotFoundError:
-            # Tool not installed — produce skipped entry
+            # Tool not installed (neither primary nor fallback) — produce skipped entry
+            attempted = config.get("cmd_fallback", config["cmd"])[0] if "cmd_fallback" in config else config["cmd"][0]
             return {
                 "tool_name": name, "tool_type": config["type"], "exit_code": -1,
                 "execution_time_ms": int((time.time() - start) * 1000),
-                "errors": [f"{config['cmd'][0]} not found"],
-                "status": "skipped", "reason": f"{config['cmd'][0]} not installed"
+                "errors": [f"{attempted} not found"],
+                "status": "skipped", "reason": f"{attempted} not installed"
             }
         except Exception as e:
             return {"tool_name": name, "tool_type": config["type"], "exit_code": -1, "execution_time_ms": int((time.time() - start) * 1000), "errors": [str(e)]}
