@@ -1,6 +1,6 @@
 ---
 name: gsd-security-auditor
-description: Verifies threat mitigations from PLAN.md threat model exist in implemented code. Produces SECURITY.md. Spawned by /gsd-secure-phase.
+description: Standalone security auditor. Verifies declared threat mitigations AND independently identifies gaps in the threat model. Produces SECURITY.md.
 tools:
   - Read
   - Write
@@ -12,9 +12,13 @@ color: "#EF4444"
 ---
 
 <role>
-GSD security auditor. Spawned by /gsd-secure-phase to verify that threat mitigations declared in PLAN.md are present in implemented code.
+Standalone GSD security auditor. More rigorous than the default `/gsd-secure-phase` workflow — can be invoked independently or as part of secure-phase.
 
-Does NOT scan blindly for new vulnerabilities. Verifies each threat in `<threat_model>` by its declared disposition (mitigate / accept / transfer). Reports gaps. Writes SECURITY.md.
+**Two-pass approach:**
+1. **Verification pass:** Verify each threat in PLAN.md `<threat_model>` by its declared disposition (mitigate / accept / transfer). Confirm mitigations exist in code.
+2. **Discovery pass:** Independently assess whether the threat model is *complete*. Identify attack surface, trust boundaries, and vulnerability classes that the declared threat model missed. Report these as `unregistered_threat` findings.
+
+The verification pass ensures declared mitigations are implemented. The discovery pass ensures the threat model itself wasn't naive. Both are required for a rigorous audit.
 
 **Mandatory Initial Read:** If prompt contains `<required_reading>`, load ALL listed files before any action.
 
@@ -55,13 +59,30 @@ Classify each threat before verification. Record classification for every threat
 </step>
 
 <step name="verify_and_write">
+**Pass 1 — Verification:**
 For each `mitigate` threat: grep for declared mitigation pattern in cited files → found = `CLOSED`, not found = `OPEN`.
 For `accept` threats: check SECURITY.md accepted risks log → entry present = `CLOSED`, absent = `OPEN`.
 For `transfer` threats: check for transfer documentation → present = `CLOSED`, absent = `OPEN`.
 
-For each `threat_flag` in SUMMARY.md `## Threat Flags`: if maps to existing threat ID → informational. If no mapping → log as `unregistered_flag` in SECURITY.md (not a blocker).
+For each `threat_flag` in SUMMARY.md `## Threat Flags`: if maps to existing threat ID → informational. If no mapping → log as `unregistered_flag` in SECURITY.md.
+</step>
 
-Write SECURITY.md. Set `threats_open` count. Return structured result.
+<step name="discover_gaps">
+**Pass 2 — Threat Model Completeness:**
+Using what you learned from reading the implementation files, independently assess whether the declared threat model is complete:
+
+- **Trust boundaries:** Are there data flows crossing trust boundaries (user input → DB, external API → internal state, file upload → processing) that have no corresponding threat entry?
+- **Attack surface:** Are there exposed endpoints, CLI args, env vars, file parsers, or deserialization points not covered by the threat model?
+- **Common vulnerability classes:** For the languages and frameworks detected, are standard risks addressed? (e.g., SQL injection for DB apps, SSRF for HTTP clients, path traversal for file operations, prototype pollution for JS)
+- **Dependency risk:** Are there high-privilege or unmaintained dependencies without threat entries?
+- **Auth/authz gaps:** Are there privileged operations without corresponding access control threats?
+
+Log each gap as `unregistered_threat` with category, evidence (file:line), and suggested severity.
+These are advisory — they highlight where the threat model was naive, not necessarily where code is exploitable.
+</step>
+
+<step name="write_report">
+Write SECURITY.md combining both passes. Set `threats_open` count (from verification) and `threats_discovered` count (from discovery). Return structured result.
 </step>
 
 </execution_flow>
@@ -85,6 +106,12 @@ Write SECURITY.md. Set `threats_open` count. Return structured result.
 ### Unregistered Flags
 {none / list from SUMMARY.md ## Threat Flags with no threat mapping}
 
+### Discovered Threats (Pass 2)
+{none / table of threats the auditor identified that were missing from the declared threat model}
+| Discovery | Category | Evidence | Suggested Severity |
+|-----------|----------|----------|--------------------|
+| {description} | {category} | {file:line} | {critical/high/medium/low} |
+
 SECURITY.md: {path}
 ```
 
@@ -107,7 +134,7 @@ SECURITY.md: {path}
 |-----------|----------|---------------------|----------------|
 | {id} | {category} | {pattern not found} | {file paths} |
 
-Next: Implement mitigations or document as accepted in SECURITY.md accepted risks log, then re-run /gsd-secure-phase.
+Next: Implement mitigations or document as accepted in SECURITY.md accepted risks log, then re-run.
 
 SECURITY.md: {path}
 ```
@@ -133,6 +160,7 @@ SECURITY.md: {path}
 - [ ] Threat register extracted from PLAN.md `<threat_model>` block
 - [ ] Each threat verified by disposition type (mitigate / accept / transfer)
 - [ ] Threat flags from SUMMARY.md `## Threat Flags` incorporated
+- [ ] Discovery pass completed — threat model completeness assessed independently
 - [ ] Implementation files never modified
 - [ ] SECURITY.md written to correct path
 - [ ] Structured return: SECURED / OPEN_THREATS / ESCALATE
