@@ -184,6 +184,48 @@ Fallback skills live in .agents/skills/.`;
       assert.ok(frontmatter.includes('description:'), 'description should be kept');
     });
   });
+
+  // ─── #2256: model_overrides support for OpenCode/Kilo agents ────────────────
+  // Only test OpenCode — Kilo uses the same converter but model override injection
+  // is wired only for OpenCode at the call site in install().
+  if (label === 'OpenCode') {
+    describe('OpenCode agent model override (modelOverride option) (#2256)', () => {
+      test('adds model: field when modelOverride is provided', () => {
+        const result = convert(SAMPLE_AGENT, { isAgent: true, modelOverride: 'gpt-5.3-codex' });
+        const frontmatter = result.split('---')[1];
+        assert.ok(frontmatter.includes('model: gpt-5.3-codex'), 'model: field must be added with override value');
+      });
+
+      test('does not add model: field when modelOverride is null', () => {
+        const result = convert(SAMPLE_AGENT, { isAgent: true, modelOverride: null });
+        const frontmatter = result.split('---')[1];
+        assert.ok(!frontmatter.includes('model:'), 'model: field must be absent when no override');
+      });
+
+      test('does not add model: field when modelOverride is omitted', () => {
+        const result = convert(SAMPLE_AGENT, { isAgent: true });
+        const frontmatter = result.split('---')[1];
+        assert.ok(!frontmatter.includes('model:'), 'model: field must be absent when option omitted');
+      });
+
+      test('model: field appears after mode: subagent', () => {
+        const result = convert(SAMPLE_AGENT, { isAgent: true, modelOverride: 'o4-mini' });
+        const frontmatter = result.split('---')[1];
+        const modeIdx = frontmatter.indexOf('mode: subagent');
+        const modelIdx = frontmatter.indexOf('model: o4-mini');
+        assert.ok(modeIdx !== -1, 'mode: subagent must be present');
+        assert.ok(modelIdx !== -1, 'model: field must be present');
+        assert.ok(modelIdx > modeIdx, 'model: must appear after mode: subagent');
+      });
+
+      test('model override does not affect command conversion', () => {
+        // modelOverride has no effect when isAgent is false (commands)
+        const result = convert(SAMPLE_COMMAND, { modelOverride: 'gpt-5.4' });
+        const frontmatter = result.split('---')[1];
+        assert.ok(!frontmatter.includes('model:'), 'model: must not appear in command output');
+      });
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -221,6 +263,32 @@ Use \${PHASE} in shell examples.
     assert.ok(!frontmatter.includes('gsd-mapper-workflow'), 'drops skills list items');
     assert.ok(result.includes('$PHASE'), 'escapes ${PHASE} shell variable for Gemini');
     assert.ok(!result.includes('${PHASE}'), 'removes Gemini template-string pattern');
+  });
+
+  test('excludes Claude-only agent interaction tools from Gemini frontmatter', () => {
+    const input = `---
+name: gsd-debug-session-manager
+description: Manages debug sessions.
+tools: Read, Task, Agent, AskUserQuestion
+---
+
+<role>
+Coordinate debugger agents.
+Offer choices via AskUserQuestion when user input is needed.
+</role>`;
+
+    const result = convertClaudeToGeminiAgent(input);
+    const frontmatter = result.split('---')[1] || '';
+
+    assert.ok(frontmatter.includes('  - read_file'), 'maps Read -> read_file');
+    assert.ok(!frontmatter.includes('  - ask_user'), 'does not emit invalid Gemini ask_user tool');
+    assert.ok(!frontmatter.includes('  - task'), 'does not emit invalid Gemini task tool');
+    assert.ok(!frontmatter.includes('  - agent'), 'does not emit invalid Gemini agent tool');
+    assert.ok(!frontmatter.includes('Task'), 'does not preserve Claude-only Task tool');
+    assert.ok(!frontmatter.includes('Agent'), 'does not preserve Claude-only Agent tool');
+    assert.ok(!frontmatter.includes('AskUserQuestion'), 'does not preserve Claude-only AskUserQuestion tool');
+    assert.ok(!result.includes('AskUserQuestion'), 'does not leave Claude-only tool references in the body');
+    assert.ok(result.includes('conversational prompting'), 'uses runtime-neutral body wording for user prompts');
   });
 });
 

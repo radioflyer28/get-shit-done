@@ -1,3 +1,7 @@
+// allow-test-rule: source-text-is-the-product
+// Reads .md/.json/.yml product files whose deployed text IS what the
+// runtime loads — testing text content tests the deployed contract.
+
 /**
  * CLAUDE.md generation and new-project workflow tests
  */
@@ -69,7 +73,10 @@ describe('new-project workflow includes CLAUDE.md generation', () => {
     const content = fs.readFileSync(workflowPath, 'utf-8');
     assert.ok(content.includes('generate-claude-md'));
     // Codex fix: workflow now uses $INSTRUCTION_FILE (AGENTS.md for Codex, CLAUDE.md otherwise)
-    assert.ok(content.includes('--files .planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md "$INSTRUCTION_FILE"'));
+    assert.ok(
+      content.includes('.planning/ROADMAP.md .planning/STATE.md .planning/REQUIREMENTS.md "$INSTRUCTION_FILE"'),
+      'final roadmap commit should stage ROADMAP, STATE, REQUIREMENTS, and instruction file'
+    );
   });
 
   test('new-project artifacts reference instruction file variable', () => {

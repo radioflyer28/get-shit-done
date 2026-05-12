@@ -1,3 +1,7 @@
+// allow-test-rule: source-text-is-the-product
+// Reads .md/.json/.yml product files whose deployed text IS what the
+// runtime loads — testing text content tests the deployed contract.
+
 /**
  * GSD Tools Tests - Claude Skills Migration (#1504)
  *
@@ -69,7 +73,7 @@ describe('convertClaudeCommandToClaudeSkill', () => {
     );
   });
 
-  test('converts name format from gsd:xxx to skill naming', () => {
+  test('emits hyphen-form name (gsd-<cmd>) from hyphen-form dir (#2808)', () => {
     const input = [
       '---',
       'name: gsd:next',
@@ -79,9 +83,10 @@ describe('convertClaudeCommandToClaudeSkill', () => {
       'Body.',
     ].join('\n');
 
+    // Directory name is gsd-next (hyphen, Windows-safe), frontmatter name is
+    // gsd-next (hyphen, #2808) so Claude Code autocomplete shows canonical form.
     const result = convertClaudeCommandToClaudeSkill(input, 'gsd-next');
-    assert.ok(result.includes('name: gsd-next'), 'name uses skill naming convention');
-    assert.ok(!result.includes('name: gsd:next'), 'old name format removed');
+    assert.ok(result.includes('name: gsd-next'), 'frontmatter name uses hyphen form (#2808)');
   });
 
   test('preserves body content unchanged', () => {

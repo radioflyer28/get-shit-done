@@ -23,7 +23,23 @@ export interface WorkflowConfig {
   plan_check: boolean;
   verifier: boolean;
   nyquist_validation: boolean;
+  /** Mirrors gsd-tools flat `config.tdd_mode` (from `workflow.tdd_mode`). */
+  tdd_mode: boolean;
+  /**
+   * Issue #3309. `end-of-phase` (default) suppresses mid-flight
+   * `<task type="checkpoint:human-verify">` task emission; the planner
+   * embeds verification details into the relevant `auto` task's
+   * `<verify><human-check>` block and the verifier harvests them at
+   * end-of-phase into the existing HUMAN-UAT.md path. `mid-flight`
+   * restores the pre-#3309 behavior where the executor halts at each
+   * `checkpoint:human-verify` task and pays a full executor cold-start
+   * cost (CLAUDE.md, MEMORY.md, STATE.md, plan re-read on respawn) per
+   * round-trip.
+   */
+  human_verify_mode: 'mid-flight' | 'end-of-phase';
   auto_advance: boolean;
+  /** Internal auto-chain flag used by workflow routing. */
+  _auto_chain_active?: boolean;
   node_repair: boolean;
   node_repair_budget: number;
   ui_phase: boolean;
@@ -34,6 +50,15 @@ export interface WorkflowConfig {
   skip_discuss: boolean;
   /** Maximum self-discuss passes in auto/headless mode before forcing proceed. Default: 3. */
   max_discuss_passes: number;
+  /** Subagent timeout in ms (matches `get-shit-done/bin/lib/core.cjs` default 300000). */
+  subagent_timeout: number;
+  /**
+   * Issue #2492. When true (default), enforces that every trackable decision in
+   * CONTEXT.md `<decisions>` is referenced by at least one plan (translation
+   * gate, blocking) and reports decisions not honored by shipped artifacts at
+   * verify-phase (validation gate, non-blocking). Set false to disable both.
+   */
+  context_coverage_gate: boolean;
 }
 
 export interface HooksConfig {
@@ -52,6 +77,10 @@ export interface GSDConfig {
   workflow: WorkflowConfig;
   hooks: HooksConfig;
   agent_skills: Record<string, unknown>;
+  /** Project slug for branch templates; mirrors gsd-tools `config.project_code`. */
+  project_code?: string | null;
+  /** Interactive vs headless; mirrors gsd-tools flat `config.mode`. */
+  mode?: string;
   [key: string]: unknown;
 }
 
@@ -76,6 +105,8 @@ export const CONFIG_DEFAULTS: GSDConfig = {
     plan_check: true,
     verifier: true,
     nyquist_validation: true,
+    tdd_mode: false,
+    human_verify_mode: 'end-of-phase',
     auto_advance: false,
     node_repair: true,
     node_repair_budget: 2,
@@ -86,18 +117,24 @@ export const CONFIG_DEFAULTS: GSDConfig = {
     discuss_mode: 'discuss',
     skip_discuss: false,
     max_discuss_passes: 3,
+    subagent_timeout: 300000,
+    context_coverage_gate: true,
+    _auto_chain_active: false,
   },
   hooks: {
     context_warnings: true,
   },
   agent_skills: {},
+  project_code: null,
+  mode: 'interactive',
 };
 
 // ─── Loader ──────────────────────────────────────────────────────────────────
 
 /**
  * Load project config from `.planning/config.json`, merging with defaults.
- * Returns full defaults when file is missing or empty.
+ * When project config is missing or empty, this returns `mergeDefaults({})`
+ * (built-in defaults only; no `~/.gsd/defaults.json` layering).
  * Throws on malformed JSON with a helpful error message.
  */
 export async function loadConfig(projectDir: string, workstream?: string): Promise<GSDConfig> {
@@ -105,25 +142,34 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
   const rootConfigPath = join(projectDir, '.planning', 'config.json');
 
   let raw: string;
+  let projectConfigFound = false;
   try {
     raw = await readFile(configPath, 'utf-8');
+    projectConfigFound = true;
   } catch {
     // If workstream config missing, fall back to root config
     if (workstream) {
       try {
         raw = await readFile(rootConfigPath, 'utf-8');
+        projectConfigFound = true;
       } catch {
-        return structuredClone(CONFIG_DEFAULTS);
+        raw = '';
       }
     } else {
-      // File missing — normal for new projects
-      return structuredClone(CONFIG_DEFAULTS);
+      raw = '';
     }
+  }
+
+  // Pre-project context: no .planning/config.json exists.
+  // Use built-in defaults only so SDK query parity stays stable across machines.
+  if (!projectConfigFound) {
+    return mergeDefaults({});
   }
 
   const trimmed = raw.trim();
   if (trimmed === '') {
-    return structuredClone(CONFIG_DEFAULTS);
+    // Empty project config — treat as no project config.
+    return mergeDefaults({});
   }
 
   let parsed: Record<string, unknown>;
@@ -138,12 +184,22 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
     throw new Error(`Config at ${configPath} must be a JSON object`);
   }
 
-  // Three-level deep merge: defaults <- parsed
+  // Project config exists — user-level defaults are ignored (CJS parity).
+  // `buildNewProjectConfig` already baked them into config.json at /gsd-new-project.
+  return mergeDefaults(parsed);
+}
+
+function mergeDefaults(parsed: Record<string, unknown>): GSDConfig {
+  const legacyBranchingStrategy = typeof parsed.branching_strategy === 'string'
+    ? parsed.branching_strategy
+    : undefined;
+
   return {
     ...structuredClone(CONFIG_DEFAULTS),
     ...parsed,
     git: {
       ...CONFIG_DEFAULTS.git,
+      ...(legacyBranchingStrategy ? { branching_strategy: legacyBranchingStrategy } : {}),
       ...(parsed.git as Partial<GitConfig> ?? {}),
     },
     workflow: {

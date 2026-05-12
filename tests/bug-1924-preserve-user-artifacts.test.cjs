@@ -1,3 +1,8 @@
+// allow-test-rule: pending-migration-to-typed-ir [#2974]
+// Tracked in #2974 for migration to typed-IR assertions per CONTRIBUTING.md
+// "Prohibited: Raw Text Matching on Test Outputs". Per-file review may
+// reclassify some entries as source-text-is-the-product during migration.
+
 /**
  * Regression tests for bug #1924: gsd-update silently deletes user-generated files
  *
@@ -57,7 +62,9 @@ function cleanup(dir) {
 function runInstaller(configDir) {
   const env = { ...process.env, CLAUDE_CONFIG_DIR: configDir };
   delete env.GSD_TEST_MODE;
-  execFileSync(process.execPath, [INSTALL_SCRIPT, '--claude', '--global', '--yes'], {
+  // --no-sdk: this test covers user-artifact preservation only; skip SDK
+  // build (covered by install-smoke.yml) to keep the test deterministic.
+  execFileSync(process.execPath, [INSTALL_SCRIPT, '--claude', '--global', '--yes', '--no-sdk'], {
     encoding: 'utf-8',
     stdio: 'pipe',
     env,

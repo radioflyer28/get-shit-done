@@ -95,17 +95,21 @@ export function sanitizeCommitMessage(text: string): string {
  * @param projectDir - Project root directory
  * @returns QueryResult with commit result
  */
-export const commit: QueryHandler = async (args, projectDir) => {
+export const commit: QueryHandler = async (args, projectDir, workstream) => {
   const allArgs = [...args];
 
   // Extract flags
   const hasForce = allArgs.includes('--force');
   const hasAmend = allArgs.includes('--amend');
   const hasNoVerify = allArgs.includes('--no-verify');
-  const nonFlagArgs = allArgs.filter(a => !a.startsWith('--'));
-
-  const message = nonFlagArgs[0];
-  const filePaths = nonFlagArgs.slice(1);
+  const filesIndex = allArgs.indexOf('--files');
+  const endIndex = filesIndex !== -1 ? filesIndex : allArgs.length;
+  // CodeRabbit #6: don't strip arbitrary `--foo` tokens from commit messages
+  const knownFlags = new Set(['--force', '--amend', '--no-verify']);
+  const messageArgs = allArgs.slice(0, endIndex).filter(a => !knownFlags.has(a));
+  const message = messageArgs.join(' ') || undefined;
+  const filePaths =
+    filesIndex !== -1 ? allArgs.slice(filesIndex + 1).filter(a => !a.startsWith('--')) : [];
 
   if (!message && !hasAmend) {
     return { data: { committed: false, reason: 'commit message required' } };
@@ -113,7 +117,7 @@ export const commit: QueryHandler = async (args, projectDir) => {
 
   // Check commit_docs config unless --force
   if (!hasForce) {
-    const paths = planningPaths(projectDir);
+    const paths = planningPaths(projectDir, workstream);
     try {
       const raw = await readFile(paths.config, 'utf-8');
       const config = JSON.parse(raw) as Record<string, unknown>;
@@ -128,24 +132,40 @@ export const commit: QueryHandler = async (args, projectDir) => {
   // Sanitize message
   const sanitized = message ? sanitizeCommitMessage(message) : message;
 
-  // Stage files
-  const filesToStage = filePaths.length > 0 ? filePaths : ['.planning/'];
-  for (const file of filesToStage) {
-    execGit(projectDir, ['add', file]);
+  // If --files was passed explicitly, the caller asked for an explicit scope.
+  // Falling back to .planning/ when every following token got filtered out
+  // would silently swap the requested scope, so reject the call instead.
+  if (filesIndex !== -1 && filePaths.length === 0) {
+    return { data: { committed: false, reason: '--files requires at least one path' } };
   }
 
-  // Check if anything is staged
-  const diffResult = execGit(projectDir, ['diff', '--cached', '--name-only']);
+  // Compute pathspec once: the handler commits exactly the paths it staged,
+  // never anything that was pre-staged externally (#3061).
+  const pathsToCommit = filePaths.length > 0 ? filePaths : ['.planning/'];
+  for (const file of pathsToCommit) {
+    // The `--` separator keeps any path that starts with `-` from being
+    // interpreted as a git option (e.g. a file literally named `-A`).
+    const addResult = execGit(projectDir, ['add', '--', file]);
+    if (addResult.exitCode !== 0) {
+      return { data: { committed: false, reason: addResult.stderr || `failed to stage ${file}`, exitCode: addResult.exitCode } };
+    }
+  }
+
+  // Check if anything is staged within the pathspec we're about to commit.
+  const diffResult = execGit(projectDir, ['diff', '--cached', '--name-only', '--', ...pathsToCommit]);
   const stagedFiles = diffResult.stdout ? diffResult.stdout.split('\n').filter(Boolean) : [];
   if (stagedFiles.length === 0) {
     return { data: { committed: false, reason: 'nothing staged' } };
   }
 
-  // Build commit command
-  const commitArgs = hasAmend
+  // Build commit command. The trailing `-- pathsToCommit` ensures the commit
+  // captures only files within the requested scope, even when the caller's
+  // index already had unrelated entries staged before this handler ran.
+  const commitArgs: string[] = hasAmend
     ? ['commit', '--amend', '--no-edit']
-    : ['commit', '-m', sanitized];
+    : ['commit', '-m', sanitized ?? ''];
   if (hasNoVerify) commitArgs.push('--no-verify');
+  commitArgs.push('--', ...pathsToCommit);
 
   const commitResult = execGit(projectDir, commitArgs);
   if (commitResult.exitCode !== 0) {
@@ -173,8 +193,8 @@ export const commit: QueryHandler = async (args, projectDir) => {
  * @param projectDir - Project root directory
  * @returns QueryResult with { can_commit, reason, commit_docs, staged_files }
  */
-export const checkCommit: QueryHandler = async (_args, projectDir) => {
-  const paths = planningPaths(projectDir);
+export const checkCommit: QueryHandler = async (_args, projectDir, workstream) => {
+  const paths = planningPaths(projectDir, workstream);
 
   let commitDocs = true;
   try {
@@ -197,6 +217,7 @@ export const checkCommit: QueryHandler = async (_args, projectDir) => {
     if (planningFiles.length > 0) {
       return {
         data: {
+          allowed: false,
           can_commit: false,
           reason: `commit_docs is false but ${planningFiles.length} .planning/ file(s) are staged`,
           commit_docs: false,
@@ -208,6 +229,7 @@ export const checkCommit: QueryHandler = async (_args, projectDir) => {
 
   return {
     data: {
+      allowed: true,
       can_commit: true,
       reason: commitDocs ? 'commit_docs_enabled' : 'no_planning_files_staged',
       commit_docs: commitDocs,
@@ -218,13 +240,35 @@ export const checkCommit: QueryHandler = async (_args, projectDir) => {
 
 // ─── commitToSubrepo ─────────────────────────────────────────────────────
 
-export const commitToSubrepo: QueryHandler = async (args, projectDir) => {
-  const message = args[0];
+export const commitToSubrepo: QueryHandler = async (args, projectDir, workstream) => {
   const filesIdx = args.indexOf('--files');
-  const files = filesIdx >= 0 ? args.slice(filesIdx + 1) : [];
+  const endIdx = filesIdx >= 0 ? filesIdx : args.length;
+  const knownFlags = new Set(['--force', '--amend', '--no-verify']);
+  const messageArgs = args.slice(0, endIdx).filter(a => !knownFlags.has(a));
+  const message = messageArgs.join(' ') || undefined;
+  const files = filesIdx >= 0 ? args.slice(filesIdx + 1).filter(a => !a.startsWith('--')) : [];
 
   if (!message) {
     return { data: { committed: false, reason: 'commit message required' } };
+  }
+
+  const paths = planningPaths(projectDir, workstream);
+  let config: Record<string, unknown> = {};
+  try {
+    const raw = await readFile(paths.config, 'utf-8');
+    config = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    /* no config */
+  }
+  const subRepos = config.sub_repos as string[] | undefined;
+  if (!subRepos || subRepos.length === 0) {
+    return {
+      data: { committed: false, reason: 'no sub_repos configured in .planning/config.json' },
+    };
+  }
+
+  if (files.length === 0) {
+    return { data: { committed: false, reason: '--files required for commit-to-subrepo' } };
   }
 
   const sanitized = sanitizeCommitMessage(message);
@@ -245,10 +289,17 @@ export const commitToSubrepo: QueryHandler = async (args, projectDir) => {
     }
 
     const fileArgs = files.length > 0 ? files : ['.'];
-    spawnSync('git', ['-C', projectDir, 'add', ...fileArgs], { stdio: 'pipe' });
+    // The `--` separator keeps any path that starts with `-` from being
+    // interpreted as a git option (e.g. a file literally named `-A`).
+    const addResult = spawnSync('git', ['-C', projectDir, 'add', '--', ...fileArgs], { stdio: 'pipe', encoding: 'utf-8' });
+    if (addResult.status !== 0) {
+      return { data: { committed: false, reason: addResult.stderr || 'git add failed' } };
+    }
 
+    // Pathspec on the commit keeps the scope identical to what was just staged,
+    // so any pre-staged external changes do not leak in (#3061).
     const commitResult = spawnSync(
-      'git', ['-C', projectDir, 'commit', '-m', sanitized],
+      'git', ['-C', projectDir, 'commit', '-m', sanitized, '--', ...fileArgs],
       { stdio: 'pipe', encoding: 'utf-8' },
     );
     if (commitResult.status !== 0) {

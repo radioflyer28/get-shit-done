@@ -4,7 +4,63 @@
 
 const fs = require('fs');
 const path = require('path');
-const { escapeRegex, normalizePhaseName, planningPaths, withPlanningLock, output, error, findPhaseInternal, stripShippedMilestones, extractCurrentMilestone, replaceInCurrentMilestone, phaseTokenMatches, atomicWriteFileSync } = require('./core.cjs');
+const { escapeRegex, normalizePhaseName, output, error, findPhaseInternal, stripShippedMilestones, extractCurrentMilestone, replaceInCurrentMilestone, phaseTokenMatches, atomicWriteFileSync } = require('./core.cjs');
+const { planningPaths, withPlanningLock } = require('./planning-workspace.cjs');
+const scanPhasePlans = require('./plan-scan.cjs');
+
+/**
+ * Coerce an arbitrary YAML scalar/object into a string for cross-cutting
+ * truth aggregation. Handles:
+ *   - strings (passthrough)
+ *   - numbers / booleans (String() coercion — issue #2770: bare YAML ints
+ *     like `- 3` must be surfaced, not silently skipped)
+ *   - kv-shaped objects from parseMustHavesBlock continuation kv (issue
+ *     #2757) — extract the first meaningful string field
+ *
+ * Returns the empty string when no usable text can be derived; callers should
+ * skip empty results.
+ */
+function coerceTruthToString(t) {
+  if (t === null || t === undefined) return '';
+  if (typeof t === 'string') return t;
+  if (typeof t === 'number' || typeof t === 'boolean' || typeof t === 'bigint') {
+    return String(t);
+  }
+  if (typeof t === 'object') {
+    // Prefer common title-bearing keys produced by parseMustHavesBlock
+    for (const k of ['title', 'text', 'name', 'rule', 'path', 'provides']) {
+      const v = t[k];
+      if (typeof v === 'string' && v.trim()) return v;
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    }
+  }
+  return '';
+}
+
+function countPhasePlansAndSummaries(phaseDir) {
+  const { planCount, summaryCount } = scanPhasePlans(phaseDir);
+  // hasContext and hasResearch are not plan-scan concerns — read the directory
+  // once for the non-plan metadata that cmdRoadmapAnalyze needs.
+  let phaseFiles = [];
+  try { phaseFiles = fs.readdirSync(phaseDir); } catch { /* empty */ }
+  return {
+    planCount,
+    summaryCount,
+    hasContext: phaseFiles.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md'),
+    hasResearch: phaseFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md'),
+  };
+}
+
+function phaseMarkdownRegexSource(phaseNum) {
+  const stripped = String(phaseNum).replace(/^[A-Z]{1,6}-(?=\d)/i, '');
+  const match = stripped.match(/^0*(\d+)([A-Z])?((?:\.\d+)*)$/i);
+  if (!match) return escapeRegex(phaseNum);
+
+  const integer = match[1].replace(/^0+/, '') || '0';
+  const letter = match[2] ? escapeRegex(match[2]) : '';
+  const decimal = match[3] ? escapeRegex(match[3]) : '';
+  return `0*${escapeRegex(integer)}${letter}${decimal}`;
+}
 
 /**
  * Search for a phase header (and its section) within the given content string.
@@ -56,6 +112,11 @@ function searchPhaseInContent(content, escapedPhase, phaseNum) {
   const goalMatch = section.match(/\*\*Goal(?::\*\*|\*\*:)\s*([^\n]+)/i);
   const goal = goalMatch ? goalMatch[1].trim() : null;
 
+  // Mode: vertical-MVP slice mode flag. Lowercased + trimmed for canonical
+  // comparison; unrecognized values are preserved verbatim for forward-compat.
+  const modeMatch = section.match(/\*\*Mode(?::\*\*|\*\*:)\s*([^\n]+)/i);
+  const mode = modeMatch ? modeMatch[1].trim().toLowerCase() : null;
+
   // Extract success criteria as structured array
   const criteriaMatch = section.match(/\*\*Success Criteria\*\*[^\n]*:\s*\n((?:\s*\d+\.\s*[^\n]+\n?)+)/i);
   const success_criteria = criteriaMatch
@@ -67,6 +128,7 @@ function searchPhaseInContent(content, escapedPhase, phaseNum) {
     phase_number: phaseNum,
     phase_name: phaseName,
     goal,
+    mode,
     success_criteria,
     section,
   };
@@ -152,6 +214,9 @@ function cmdRoadmapAnalyze(cwd, raw) {
     const goalMatch = section.match(/\*\*Goal(?::\*\*|\*\*:)\s*([^\n]+)/i);
     const goal = goalMatch ? goalMatch[1].trim() : null;
 
+    const modeMatch = section.match(/\*\*Mode(?::\*\*|\*\*:)\s*([^\n]+)/i);
+    const mode = modeMatch ? modeMatch[1].trim().toLowerCase() : null;
+
     const dependsMatch = section.match(/\*\*Depends on(?::\*\*|\*\*:)\s*([^\n]+)/i);
     const depends_on = dependsMatch ? dependsMatch[1].trim() : null;
 
@@ -167,11 +232,11 @@ function cmdRoadmapAnalyze(cwd, raw) {
       const dirMatch = _phaseDirNames.find(d => phaseTokenMatches(d, normalized));
 
       if (dirMatch) {
-        const phaseFiles = fs.readdirSync(path.join(phasesDir, dirMatch));
-        planCount = phaseFiles.filter(f => f.endsWith('-PLAN.md') || f === 'PLAN.md').length;
-        summaryCount = phaseFiles.filter(f => f.endsWith('-SUMMARY.md') || f === 'SUMMARY.md').length;
-        hasContext = phaseFiles.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
-        hasResearch = phaseFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
+        const counts = countPhasePlansAndSummaries(path.join(phasesDir, dirMatch));
+        planCount = counts.planCount;
+        summaryCount = counts.summaryCount;
+        hasContext = counts.hasContext;
+        hasResearch = counts.hasResearch;
 
         if (summaryCount >= planCount && planCount > 0) diskStatus = 'complete';
         else if (summaryCount > 0) diskStatus = 'partial';
@@ -198,6 +263,7 @@ function cmdRoadmapAnalyze(cwd, raw) {
       number: phaseNum,
       name: phaseName,
       goal,
+      mode,
       depends_on,
       plan_count: planCount,
       summary_count: summaryCount,
@@ -286,11 +352,11 @@ function cmdRoadmapUpdatePlanProgress(cwd, phaseNum, raw) {
   // Wrap entire read-modify-write in lock to prevent concurrent corruption
   withPlanningLock(cwd, () => {
     let roadmapContent = fs.readFileSync(roadmapPath, 'utf-8');
-    const phaseEscaped = escapeRegex(phaseNum);
+    const phasePattern = phaseMarkdownRegexSource(phaseNum);
 
     // Progress table row: update Plans/Status/Date columns (handles 4 or 5 column tables)
     const tableRowPattern = new RegExp(
-      `^(\\|\\s*${phaseEscaped}\\.?\\s[^|]*(?:\\|[^\\n]*))$`,
+      `^(\\|\\s*${phasePattern}\\.?\\s[^|]*(?:\\|[^\\n]*))$`,
       'im'
     );
     const dateField = isComplete ? ` ${today} ` : '  ';
@@ -312,7 +378,7 @@ function cmdRoadmapUpdatePlanProgress(cwd, phaseNum, raw) {
 
     // Update plan count in phase detail section
     const planCountPattern = new RegExp(
-      `(#{2,4}\\s*Phase\\s+${phaseEscaped}[\\s\\S]*?\\*\\*Plans:\\*\\*\\s*)[^\\n]+`,
+      `(#{2,4}\\s*Phase\\s+${phasePattern}(?=[:\\s])[\\s\\S]*?\\*\\*Plans:\\*\\*\\s*)[^\\n]+`,
       'i'
     );
     const planCountText = isComplete
@@ -323,7 +389,7 @@ function cmdRoadmapUpdatePlanProgress(cwd, phaseNum, raw) {
     // If complete: check checkbox
     if (isComplete) {
       const checkboxPattern = new RegExp(
-        `(-\\s*\\[)[ ](\\]\\s*.*Phase\\s+${phaseEscaped}[:\\s][^\\n]*)`,
+        `(-\\s*\\[)[ ](\\]\\s*.*Phase\\s+${phasePattern}[:\\s][^\\n]*)`,
         'i'
       );
       roadmapContent = replaceInCurrentMilestone(roadmapContent, checkboxPattern, `$1x$2 (completed ${today})`);
@@ -353,8 +419,182 @@ function cmdRoadmapUpdatePlanProgress(cwd, phaseNum, raw) {
   }, raw, `${summaryCount}/${planCount} ${status}`);
 }
 
+/**
+ * Annotate the ROADMAP.md plan list for a phase with wave dependency notes
+ * and a cross-cutting constraints subsection derived from PLAN frontmatter.
+ *
+ * Wave dependency notes: "Wave 2 — blocked on Wave 1 completion" inserted as
+ * bold headers before each wave group in the plan checklist.
+ *
+ * Cross-cutting constraints: must_haves.truths strings that appear in 2+ plans
+ * are surfaced in a "Cross-cutting constraints" subsection below the plan list.
+ *
+ * The operation is idempotent: if wave headers already exist in the section
+ * the function returns without modifying the file.
+ */
+function cmdRoadmapAnnotateDependencies(cwd, phaseNum, raw) {
+  if (!phaseNum) {
+    error('phase number required for roadmap annotate-dependencies');
+  }
+
+  const roadmapPath = planningPaths(cwd).roadmap;
+  if (!fs.existsSync(roadmapPath)) {
+    output({ updated: false, reason: 'ROADMAP.md not found' }, raw, 'no roadmap');
+    return;
+  }
+
+  const phaseInfo = findPhaseInternal(cwd, phaseNum);
+  if (!phaseInfo || phaseInfo.plans.length === 0) {
+    output({ updated: false, reason: 'no plans found for phase', phase: phaseNum }, raw, 'no plans');
+    return;
+  }
+
+  const { extractFrontmatter, parseMustHavesBlock } = require('./frontmatter.cjs');
+
+  // Read each PLAN.md and extract wave + must_haves.truths
+  const planData = [];
+  for (const planFile of phaseInfo.plans) {
+    const planPath = path.join(path.resolve(cwd, phaseInfo.directory), planFile);
+    try {
+      const content = fs.readFileSync(planPath, 'utf-8');
+      const fm = extractFrontmatter(content);
+      const wave = parseInt(fm.wave, 10) || 1;
+      const planId = planFile.replace(/-PLAN\.md$/i, '').replace(/PLAN\.md$/i, '');
+      const truths = parseMustHavesBlock(content, 'truths') || [];
+      planData.push({ planFile, planId, wave, truths });
+    } catch { /* skip unreadable plans */ }
+  }
+
+  if (planData.length === 0) {
+    output({ updated: false, reason: 'could not read plan frontmatter' }, raw, 'no frontmatter');
+    return;
+  }
+
+  // Group plans by wave (sorted)
+  const waveGroups = new Map();
+  for (const p of planData) {
+    if (!waveGroups.has(p.wave)) waveGroups.set(p.wave, []);
+    waveGroups.get(p.wave).push(p);
+  }
+  const waves = [...waveGroups.keys()].sort((a, b) => a - b);
+
+  // Find cross-cutting truths: appear in 2+ plans (de-duplicated, case-insensitive).
+  //
+  // Issue #2770: must **coerce, not skip**. A previous guard
+  // `if (typeof t !== 'string') continue` silently dropped numeric scalars
+  // (YAML ints like `- 3`) and kv-shaped truths (`- title: X`), so the
+  // cross-cutting analysis lost real constraints rather than crashing on
+  // `t.trim()`. We coerce primitives via `String(t)` and extract a sensible
+  // string field from object-shaped items produced by parseMustHavesBlock's
+  // continuation-kv path (issue #2757 produces those shapes for nested keys).
+  const truthCounts = new Map();
+  for (const { truths } of planData) {
+    const seen = new Set();
+    for (const t of truths) {
+      const text = coerceTruthToString(t);
+      if (!text) continue;
+      const trimmed = text.trim();
+      const key = trimmed.toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      if (!truthCounts.has(key)) truthCounts.set(key, { count: 0, text: trimmed });
+      truthCounts.get(key).count++;
+    }
+  }
+  const crossCuttingTruths = [...truthCounts.values()]
+    .filter(v => v.count >= 2)
+    .map(v => v.text);
+
+  // Patch ROADMAP.md
+  let updated = false;
+  withPlanningLock(cwd, () => {
+    let content = fs.readFileSync(roadmapPath, 'utf-8');
+
+    // Find the phase section
+    const phaseEscaped = escapeRegex(phaseNum);
+    const phaseHeaderPattern = new RegExp(`(#{2,4}\\s*Phase\\s+${phaseEscaped}:[^\\n]*)`, 'i');
+    const phaseMatch = content.match(phaseHeaderPattern);
+    if (!phaseMatch) return;
+
+    const phaseStart = phaseMatch.index;
+    const restAfterHeader = content.slice(phaseStart);
+    const nextPhaseOffset = restAfterHeader.slice(1).search(/\n#{2,4}\s+Phase\s+\d/i);
+    const phaseEnd = nextPhaseOffset >= 0 ? phaseStart + 1 + nextPhaseOffset : content.length;
+    const phaseSection = content.slice(phaseStart, phaseEnd);
+
+    // Idempotency: skip if annotation markers already present
+    if (
+      /\*\*Wave\s+\d+/i.test(phaseSection) ||
+      /\*\*Cross-cutting constraints:\*\*/i.test(phaseSection)
+    ) return;
+
+    // Find the Plans: section within the phase section
+    const plansBlockMatch = phaseSection.match(/(Plans:\s*\n)((?:\s*-\s*\[[ x]\][^\n]*\n?)*)/i);
+    if (!plansBlockMatch) return;
+
+    const plansHeader = plansBlockMatch[1];
+    const existingList = plansBlockMatch[2];
+    const listLines = existingList.split('\n').filter(l => /^\s*-\s*\[/.test(l));
+
+    if (listLines.length === 0) return;
+
+    // Build wave-annotated plan list
+    const linesByWave = new Map();
+    for (const line of listLines) {
+      // Match plan ID from line: "- [ ] 01-01-PLAN.md — ..." or "- [ ] 01-01: ..."
+      const idMatch = line.match(/\[\s*[x ]\s*\]\s*([\w-]+?)(?:-PLAN\.md|\.md|:|\s—)/i);
+      const planId = idMatch ? idMatch[1] : null;
+      const planEntry = planId ? planData.find(p => p.planId === planId) : null;
+      const wave = planEntry ? planEntry.wave : 1;
+      if (!linesByWave.has(wave)) linesByWave.set(wave, []);
+      linesByWave.get(wave).push(line);
+    }
+
+    const annotatedLines = [];
+    const sortedWaves = [...linesByWave.keys()].sort((a, b) => a - b);
+    for (let i = 0; i < sortedWaves.length; i++) {
+      const w = sortedWaves[i];
+      const waveLines = linesByWave.get(w);
+      if (sortedWaves.length > 1) {
+        const dep = i > 0 ? ` *(blocked on Wave ${sortedWaves[i - 1]} completion)*` : '';
+        annotatedLines.push(`**Wave ${w}**${dep}`);
+      }
+      annotatedLines.push(...waveLines);
+      if (i < sortedWaves.length - 1) annotatedLines.push('');
+    }
+
+    // Append cross-cutting constraints subsection if any found
+    if (crossCuttingTruths.length > 0) {
+      annotatedLines.push('');
+      annotatedLines.push('**Cross-cutting constraints:**');
+      for (const t of crossCuttingTruths) {
+        annotatedLines.push(`- ${t}`);
+      }
+    }
+
+    const newListBlock = annotatedLines.join('\n') + '\n';
+    const newPhaseSection = phaseSection.replace(
+      plansBlockMatch[0],
+      plansHeader + newListBlock
+    );
+
+    const nextContent = content.slice(0, phaseStart) + newPhaseSection + content.slice(phaseEnd);
+    if (nextContent === content) return;
+    atomicWriteFileSync(roadmapPath, nextContent);
+    updated = true;
+  });
+
+  output({
+    updated,
+    phase: phaseNum,
+    waves: waves.length,
+    cross_cutting_constraints: crossCuttingTruths.length,
+  }, raw, updated ? `annotated ${waves.length} wave(s), ${crossCuttingTruths.length} constraint(s)` : 'skipped (already annotated or no plan list)');
+}
+
 module.exports = {
   cmdRoadmapGetPhase,
   cmdRoadmapAnalyze,
   cmdRoadmapUpdatePlanProgress,
+  cmdRoadmapAnnotateDependencies,
 };

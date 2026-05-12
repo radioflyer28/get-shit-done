@@ -1,3 +1,7 @@
+// allow-test-rule: source-text-is-the-product
+// Reads .md/.json/.yml product files whose deployed text IS what the
+// runtime loads — testing text content tests the deployed contract.
+
 /**
  * GSD Tools Tests - Commands
  */
@@ -1067,12 +1071,40 @@ describe('resolve-model command', () => {
     assert.strictEqual(output.unknown_agent, undefined, 'should not have unknown_agent for known agent');
   });
 
+  test('shipped-but-previously-missing agent resolves under quality profile (#3229)', () => {
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({ model_profile: 'quality' }));
+    const result = runGsdTools('resolve-model gsd-code-reviewer', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.model, 'opus');
+    assert.strictEqual(output.profile, 'quality');
+    assert.strictEqual(output.unknown_agent, undefined);
+  });
+
   test('unknown agent returns unknown_agent=true', () => {
     const result = runGsdTools('resolve-model fake-nonexistent-agent', tmpDir);
     assert.ok(result.success, `Command failed: ${result.error}`);
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.unknown_agent, true, 'should flag unknown agent');
+  });
+
+  test('unknown agent uses quality-semantic fallback (opus)', () => {
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({ model_profile: 'quality' }));
+    const result = runGsdTools('resolve-model fake-nonexistent-agent', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.model, 'opus');
+    assert.strictEqual(output.unknown_agent, true);
+  });
+
+  test('unknown agent uses budget-semantic fallback (haiku)', () => {
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({ model_profile: 'budget' }));
+    const result = runGsdTools('resolve-model fake-nonexistent-agent', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.model, 'haiku');
+    assert.strictEqual(output.unknown_agent, true);
   });
 
   test('default profile fallback when no config exists', () => {
@@ -1692,6 +1724,36 @@ describe('stats command', () => {
 
     const output = JSON.parse(result.output);
     assert.strictEqual(output.phases[0].status, 'Executed', 'progress should show Executed without verification');
+  });
+
+  test('does not duplicate phases when ROADMAP uses unpadded numbers and dirs use padded numbers', () => {
+    // ROADMAP.md uses "Phase 1:" (unpadded) but directory is "01-auth" (padded).
+    // Without normalization, the Map holds two entries: "1" and "01", doubling phases_total.
+    const p1 = path.join(tmpDir, '.planning', 'phases', '01-auth');
+    fs.mkdirSync(p1, { recursive: true });
+    fs.writeFileSync(path.join(p1, '01-01-PLAN.md'), '# Plan');
+    fs.writeFileSync(path.join(p1, '01-01-SUMMARY.md'), '# Summary');
+    fs.writeFileSync(path.join(p1, 'VERIFICATION.md'), '---\nstatus: passed\n---\n# Verified');
+
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      [
+        '# Roadmap',
+        '',
+        '## Milestone v1',
+        '',
+        '### Phase 1: Auth',
+        '**Goal:** Authentication',
+      ].join('\n')
+    );
+
+    const result = runGsdTools('stats', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const stats = JSON.parse(result.output);
+    assert.strictEqual(stats.phases_total, 1, 'unpadded ROADMAP heading and padded dir should merge into one phase');
+    assert.strictEqual(stats.phases_completed, 1);
+    assert.strictEqual(stats.phases.length, 1);
   });
 });
 

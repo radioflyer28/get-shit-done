@@ -16,41 +16,21 @@
  * ```
  */
 
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { GSDError, ErrorClassification } from '../errors.js';
 import { loadConfig } from '../config.js';
 import { planningPaths } from './helpers.js';
+import { maskIfSecret } from './secrets.js';
 import type { QueryHandler } from './utils.js';
-
-// ─── MODEL_PROFILES ─────────────────────────────────────────────────────────
-
-/**
- * Mapping of GSD agent type to model alias for each profile tier.
- *
- * Ported from get-shit-done/bin/lib/model-profiles.cjs.
- */
-export const MODEL_PROFILES: Record<string, Record<string, string>> = {
-  'gsd-planner': { quality: 'opus', balanced: 'opus', budget: 'sonnet', adaptive: 'opus' },
-  'gsd-roadmapper': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'sonnet' },
-  'gsd-executor': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'sonnet' },
-  'gsd-phase-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-project-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-research-synthesizer': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-debugger': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'opus' },
-  'gsd-codebase-mapper': { quality: 'sonnet', balanced: 'haiku', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-plan-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-integration-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-nyquist-auditor': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-ui-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-ui-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-ui-auditor': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-doc-writer': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-doc-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-};
-
-/** Valid model profile names. */
-export const VALID_PROFILES: string[] = Object.keys(MODEL_PROFILES['gsd-planner']);
+export { MODEL_PROFILES, VALID_PROFILES, getAgentToModelMapForProfile } from '../model-catalog.js';
+import {
+  AGENT_TO_PHASE_TYPE,
+  MODEL_PROFILES,
+  VALID_PROFILES,
+  getAgentToModelMapForProfile,
+  resolveRuntimeTierDefault,
+} from '../model-catalog.js';
 
 // ─── configGet ──────────────────────────────────────────────────────────────
 
@@ -65,13 +45,26 @@ export const VALID_PROFILES: string[] = Object.keys(MODEL_PROFILES['gsd-planner'
  * @returns QueryResult with the config value at the given path
  * @throws GSDError with Validation classification if key missing or not found
  */
-export const configGet: QueryHandler = async (args, projectDir) => {
-  const keyPath = args[0];
-  if (!keyPath) {
-    throw new GSDError('Usage: config-get <key.path>', ErrorClassification.Validation);
+export const configGet: QueryHandler = async (args, projectDir, workstream) => {
+  // Support --default <value> flag (#2803): return this value (exit 0) when the
+  // key is absent, mirroring gsd-tools.cjs config-get behavior from #1893.
+  const defaultIdx = args.indexOf('--default');
+  let defaultValue: string | undefined;
+  let filteredArgs = args;
+  if (defaultIdx !== -1) {
+    if (defaultIdx + 1 >= args.length) {
+      throw new GSDError('Usage: config-get <key.path> [--default <value>]', ErrorClassification.Validation);
+    }
+    defaultValue = String(args[defaultIdx + 1]);
+    filteredArgs = [...args.slice(0, defaultIdx), ...args.slice(defaultIdx + 2)];
   }
 
-  const paths = planningPaths(projectDir);
+  const keyPath = filteredArgs[0];
+  if (!keyPath) {
+    throw new GSDError('Usage: config-get <key.path> [--default <value>]', ErrorClassification.Validation);
+  }
+
+  const paths = planningPaths(projectDir, workstream);
   let raw: string;
   try {
     raw = await readFile(paths.config, 'utf-8');
@@ -90,18 +83,76 @@ export const configGet: QueryHandler = async (args, projectDir) => {
   let current: unknown = config;
   for (const key of keys) {
     if (current === undefined || current === null || typeof current !== 'object') {
-      throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Validation);
+      // UNIX convention (cf. `git config --get`): missing key exits 1, not 10.
+      // See issue #2544 — callers use `if ! gsd-sdk query config-get k; then` patterns.
+      if (defaultValue !== undefined) return { data: defaultValue };
+      throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
     }
     current = (current as Record<string, unknown>)[key];
   }
   if (current === undefined) {
-    throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Validation);
+    if (defaultValue !== undefined) return { data: defaultValue };
+    throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
   }
 
-  return { data: current };
+  // Mask plaintext for keys in SECRET_CONFIG_KEYS to match CJS behavior at
+  // config.cjs:440-441 — without this, `gsd-sdk query config-get brave_search`
+  // would echo the plaintext credential into machine-readable output. (#2997)
+  return { data: maskIfSecret(keyPath, current) };
+};
+
+// ─── configPath ─────────────────────────────────────────────────────────────
+
+/**
+ * Query handler for config-path — resolved `.planning/config.json` path (workstream-aware via cwd).
+ *
+ * Port of `cmdConfigPath` from `config.cjs`. The JSON query API returns `{ path }`; the CJS CLI
+ * emits the path as plain text for shell substitution.
+ *
+ * @param _args - Unused
+ * @param projectDir - Project root directory
+ * @returns QueryResult with `{ path: string }` absolute or project-relative resolution via planningPaths
+ */
+export const configPath: QueryHandler = async (_args, projectDir, workstream) => {
+  const paths = planningPaths(projectDir, workstream);
+  return { data: { path: paths.config } };
 };
 
 // ─── resolveModel ───────────────────────────────────────────────────────────
+
+type RuntimeTierName = 'opus' | 'sonnet' | 'haiku';
+
+interface RuntimeTierEntry {
+  model?: string;
+  reasoning_effort?: string;
+}
+
+function isRuntimeTierName(value: string): value is RuntimeTierName {
+  return value === 'opus' || value === 'sonnet' || value === 'haiku';
+}
+
+function normalizeRuntimeTierEntry(entry: unknown): RuntimeTierEntry | null {
+  if (typeof entry === 'string') return { model: entry };
+  if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+    return entry as RuntimeTierEntry;
+  }
+  return null;
+}
+
+function resolveRuntimeTier(config: Record<string, unknown>, tier: string): RuntimeTierEntry | null {
+  if (!isRuntimeTierName(tier)) return null;
+
+  const runtime = typeof config.runtime === 'string' ? config.runtime : '';
+  if (!runtime || runtime === 'claude') return null;
+
+  const builtin = resolveRuntimeTierDefault(runtime, tier);
+  const profileOverrides = config.model_profile_overrides as Record<string, unknown> | undefined;
+  const runtimeOverrides = profileOverrides?.[runtime] as Record<string, unknown> | undefined;
+  const userEntry = normalizeRuntimeTierEntry(runtimeOverrides?.[tier]);
+
+  if (!builtin && !userEntry) return null;
+  return { ...(builtin ?? {}), ...(userEntry ?? {}) };
+}
 
 /**
  * Query handler for resolve-model command.
@@ -111,16 +162,20 @@ export const configGet: QueryHandler = async (args, projectDir) => {
  *
  * @param args - args[0] is the agent type (e.g., 'gsd-planner')
  * @param projectDir - Project root directory
+ * @param workstream - Optional workstream name; forwarded to loadConfig so per-workstream
+ *   model_profile settings are respected (mirrors configGet/configPath behavior)
  * @returns QueryResult with { model, profile } or { model, profile, unknown_agent: true }
  * @throws GSDError with Validation classification if agent type not provided
  */
-export const resolveModel: QueryHandler = async (args, projectDir) => {
+export const resolveModel: QueryHandler = async (args, projectDir, workstream) => {
   const agentType = args[0];
   if (!agentType) {
     throw new GSDError('agent-type required', ErrorClassification.Validation);
   }
 
-  const config = await loadConfig(projectDir);
+  const configFilePath = planningPaths(projectDir, workstream).config;
+  const configExists = existsSync(configFilePath);
+  const config = await loadConfig(projectDir, workstream);
   const profile = String(config.model_profile || 'balanced').toLowerCase();
 
   // Check per-agent override first
@@ -134,10 +189,11 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
     return { data: result };
   }
 
-  // resolve_model_ids: "omit" -- return empty string
+  const agentModels = MODEL_PROFILES[agentType];
+
+  // No project config -> return empty model id (CJS parity)
   const resolveModelIds = (config as Record<string, unknown>).resolve_model_ids;
-  if (resolveModelIds === 'omit') {
-    const agentModels = MODEL_PROFILES[agentType];
+  if (!configExists) {
     const result = agentModels
       ? { model: '', profile }
       : { model: '', profile, unknown_agent: true };
@@ -145,9 +201,13 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
   }
 
   // Fall back to profile lookup
-  const agentModels = MODEL_PROFILES[agentType];
   if (!agentModels) {
-    return { data: { model: 'sonnet', profile, unknown_agent: true } };
+    const semanticFallback =
+      profile === 'quality' ? 'opus'
+      : profile === 'budget' ? 'haiku'
+      : profile === 'inherit' ? 'inherit'
+      : 'sonnet';
+    return { data: { model: semanticFallback, profile, unknown_agent: true } };
   }
 
   if (profile === 'inherit') {
@@ -155,5 +215,19 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
   }
 
   const alias = agentModels[profile] || agentModels['balanced'] || 'sonnet';
+  const phaseType = AGENT_TO_PHASE_TYPE[agentType];
+  const phaseTier = phaseType && typeof (config as Record<string, unknown>).models === 'object'
+    ? ((config as Record<string, unknown>).models as Record<string, unknown>)[phaseType]
+    : undefined;
+  const tier = typeof phaseTier === 'string' ? phaseTier : alias;
+  const runtimeTier = resolveRuntimeTier(config as Record<string, unknown>, tier);
+  if (runtimeTier?.model) {
+    return { data: { model: runtimeTier.model, profile } };
+  }
+
+  if (resolveModelIds === 'omit') {
+    return { data: { model: '', profile } };
+  }
+
   return { data: { model: alias, profile } };
 };

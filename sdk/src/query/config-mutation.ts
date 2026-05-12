@@ -10,7 +10,7 @@
  * import { configSet, configNewProject } from './config-mutation.js';
  *
  * await configSet(['model_profile', 'quality'], '/project');
- * // { data: { set: true, key: 'model_profile', value: 'quality' } }
+ * // { data: { updated: true, key: 'model_profile', value: 'quality', previousValue: 'balanced' } }
  *
  * await configNewProject([], '/project');
  * // { data: { created: true, path: '.planning/config.json' } }
@@ -22,9 +22,11 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { GSDError, ErrorClassification } from '../errors.js';
-import { MODEL_PROFILES, VALID_PROFILES } from './config-query.js';
+import { VALID_PROFILES, getAgentToModelMapForProfile } from './config-query.js';
+import { VALID_CONFIG_KEYS, RUNTIME_STATE_KEYS, DYNAMIC_KEY_PATTERNS } from './config-schema.js';
 import { planningPaths } from './helpers.js';
 import { acquireStateLock, releaseStateLock } from './state-mutation.js';
+import { maskIfSecret } from './secrets.js';
 import type { QueryHandler } from './utils.js';
 
 /**
@@ -45,41 +47,8 @@ async function atomicWriteConfig(configPath: string, config: Record<string, unkn
 }
 
 // ─── VALID_CONFIG_KEYS ────────────────────────────────────────────────────
-
-/**
- * Allowlist of valid config key paths.
- *
- * Ported from config.cjs lines 14-37.
- * Dynamic patterns (agent_skills.*, features.*) are handled
- * separately in isValidConfigKey.
- */
-const VALID_CONFIG_KEYS = new Set([
-  'mode', 'granularity', 'parallelization', 'commit_docs', 'model_profile',
-  'search_gitignored', 'brave_search', 'firecrawl', 'exa_search',
-  'workflow.research', 'workflow.plan_check', 'workflow.verifier',
-  'workflow.nyquist_validation', 'workflow.ui_phase', 'workflow.ui_safety_gate',
-  'workflow.auto_advance', 'workflow.node_repair', 'workflow.node_repair_budget',
-  'workflow.text_mode',
-  'workflow.research_before_questions',
-  'workflow.discuss_mode',
-  'workflow.skip_discuss',
-  'workflow._auto_chain_active',
-  'workflow.use_worktrees',
-  'workflow.code_review',
-  'workflow.code_review_depth',
-  'git.branching_strategy', 'git.base_branch', 'git.phase_branch_template',
-  'git.milestone_branch_template', 'git.quick_branch_template',
-  'planning.commit_docs', 'planning.search_gitignored',
-  'workflow.subagent_timeout',
-  'hooks.context_warnings',
-  'features.thinking_partner',
-  'features.global_learnings',
-  'learnings.max_inject',
-  'context',
-  'project_code', 'phase_naming',
-  'manager.flags.discuss', 'manager.flags.plan', 'manager.flags.execute',
-  'response_language',
-]);
+// Imported from ./config-schema.js — single source of truth, kept in sync
+// with get-shit-done/bin/lib/config-schema.cjs by a CI parity test (#2653).
 
 // ─── CONFIG_KEY_SUGGESTIONS (D9 — match CJS config.cjs:57-67) ────────────
 
@@ -94,10 +63,89 @@ const CONFIG_KEY_SUGGESTIONS: Record<string, string> = {
   'hooks.research_questions': 'workflow.research_before_questions',
   'workflow.research_questions': 'workflow.research_before_questions',
   'workflow.codereview': 'workflow.code_review',
+  'workflow.review_command': 'workflow.code_review_command',
   'workflow.review': 'workflow.code_review',
   'workflow.code_review_level': 'workflow.code_review_depth',
   'workflow.review_depth': 'workflow.code_review_depth',
+  'review.model': 'review.models.<cli-name>',
+  'sub_repos': 'planning.sub_repos',
+  'plan_checker': 'workflow.plan_check',
 };
+
+const SHIP_PR_BODY_SECTION_KEYS = new Set(['heading', 'enabled', 'source', 'fallback', 'template']);
+const SHIP_PR_BODY_TEMPLATE_TOKENS = new Set([
+  'phase_number',
+  'phase_name',
+  'phase_dir',
+  'base_branch',
+  'padded_phase',
+]);
+const SHIP_PR_BODY_SOURCE_RE = /^(ROADMAP|PLAN|SUMMARY|VERIFICATION|STATE|REQUIREMENTS|CONTEXT)\.md\s+##\s+[^\r\n#][^\r\n]*$/;
+
+function validateShipPrBodySections(value: unknown): void {
+  if (!Array.isArray(value)) {
+    throw new GSDError(
+      'Invalid ship.pr_body_sections value. Expected a JSON array of section objects.',
+      ErrorClassification.Validation,
+    );
+  }
+
+  value.forEach((section, index) => {
+    const prefix = `Invalid ship.pr_body_sections[${index}]`;
+    if (!section || typeof section !== 'object' || Array.isArray(section)) {
+      throw new GSDError(`${prefix}. Expected an object.`, ErrorClassification.Validation);
+    }
+
+    const record = section as Record<string, unknown>;
+    const unknownKeys = Object.keys(record).filter((key) => !SHIP_PR_BODY_SECTION_KEYS.has(key));
+    if (unknownKeys.length > 0) {
+      throw new GSDError(`${prefix}. Unknown field(s): ${unknownKeys.join(', ')}.`, ErrorClassification.Validation);
+    }
+
+    if (typeof record.heading !== 'string' || record.heading.trim() === '') {
+      throw new GSDError(`${prefix}. heading must be a non-empty string.`, ErrorClassification.Validation);
+    }
+    if (/[\r\n]/.test(record.heading)) {
+      throw new GSDError(`${prefix}. heading must be a single line.`, ErrorClassification.Validation);
+    }
+
+    if ('enabled' in record && typeof record.enabled !== 'boolean') {
+      throw new GSDError(`${prefix}. enabled must be true or false.`, ErrorClassification.Validation);
+    }
+
+    for (const field of ['source', 'fallback', 'template']) {
+      if (field in record && typeof record[field] !== 'string') {
+        throw new GSDError(`${prefix}. ${field} must be a string.`, ErrorClassification.Validation);
+      }
+    }
+
+    const hasContent = ['source', 'fallback', 'template'].some((field) => {
+      return typeof record[field] === 'string' && record[field].trim() !== '';
+    });
+    if (!hasContent) {
+      throw new GSDError(`${prefix}. Provide at least one of source, fallback, or template.`, ErrorClassification.Validation);
+    }
+
+    if (typeof record.source === 'string' && record.source.trim() !== '') {
+      const selectors = record.source.split('||').map((selector) => selector.trim()).filter(Boolean);
+      if (selectors.length === 0 || selectors.some((selector) => !SHIP_PR_BODY_SOURCE_RE.test(selector))) {
+        throw new GSDError(
+          `${prefix}. source must use selectors like "PLAN.md ## Risks", separated with "||".`,
+          ErrorClassification.Validation,
+        );
+      }
+    }
+
+    if (typeof record.template === 'string') {
+      const tokens = record.template.matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g);
+      for (const match of tokens) {
+        if (!SHIP_PR_BODY_TEMPLATE_TOKENS.has(match[1])) {
+          throw new GSDError(`${prefix}. Unsupported template token: {${match[1]}}.`, ErrorClassification.Validation);
+        }
+      }
+    }
+  });
+}
 
 // ─── isValidConfigKey ─────────────────────────────────────────────────────
 
@@ -113,12 +161,12 @@ const CONFIG_KEY_SUGGESTIONS: Record<string, string> = {
  */
 export function isValidConfigKey(keyPath: string): { valid: boolean; suggestion?: string } {
   if (VALID_CONFIG_KEYS.has(keyPath)) return { valid: true };
+  if (RUNTIME_STATE_KEYS.has(keyPath)) return { valid: true };
 
-  // Dynamic patterns: agent_skills.<agent-type>
-  if (/^agent_skills\.[a-zA-Z0-9_-]+$/.test(keyPath)) return { valid: true };
-
-  // Dynamic patterns: features.<feature_name>
-  if (/^features\.[a-zA-Z0-9_]+$/.test(keyPath)) return { valid: true };
+  // Dynamic patterns — all sourced from shared config-schema (#2653).
+  // Covers agent_skills.*, review.models.*, features.*,
+  // claude_md_assembly.blocks.*, and model_profile_overrides.*.<tier>.
+  if (DYNAMIC_KEY_PATTERNS.some((p) => p.test(keyPath))) return { valid: true };
 
   // D9: Check curated suggestions before LCP fallback
   if (CONFIG_KEY_SUGGESTIONS[keyPath]) {
@@ -177,6 +225,18 @@ export function parseConfigValue(value: string): unknown {
  * @param dotPath - Dot-notation key path (e.g., 'workflow.auto_advance')
  * @param value - Value to set
  */
+function getValueAtPath(obj: Record<string, unknown>, dotPath: string): unknown {
+  const keys = dotPath.split('.');
+  let current: unknown = obj;
+  for (const key of keys) {
+    if (current === undefined || current === null || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
 function setConfigValue(obj: Record<string, unknown>, dotPath: string, value: unknown): void {
   const keys = dotPath.split('.');
   let current: Record<string, unknown> = obj;
@@ -200,10 +260,10 @@ function setConfigValue(obj: Record<string, unknown>, dotPath: string, value: un
  *
  * @param args - args[0]=key, args[1]=value
  * @param projectDir - Project root directory
- * @returns QueryResult with { set: true, key, value }
+ * @returns QueryResult matching gsd-tools `config-set` JSON: `{ updated, key, value, previousValue }`
  * @throws GSDError with Validation if key is invalid or args missing
  */
-export const configSet: QueryHandler = async (args, projectDir) => {
+export const configSet: QueryHandler = async (args, projectDir, workstream) => {
   const keyPath = args[0];
   const rawValue = args[1];
   if (!keyPath) {
@@ -230,9 +290,14 @@ export const configSet: QueryHandler = async (args, projectDir) => {
     );
   }
 
+  if (keyPath === 'ship.pr_body_sections') {
+    validateShipPrBodySections(parsedValue);
+  }
+
   // D6: Lock protection for read-modify-write (match CJS config.cjs:296)
-  const paths = planningPaths(projectDir);
+  const paths = planningPaths(projectDir, workstream);
   const lockPath = await acquireStateLock(paths.config);
+  let previousValue: unknown;
   try {
     let config: Record<string, unknown> = {};
     try {
@@ -242,13 +307,26 @@ export const configSet: QueryHandler = async (args, projectDir) => {
       // Start with empty config if file doesn't exist or is malformed
     }
 
+    previousValue = getValueAtPath(config, keyPath);
     setConfigValue(config, keyPath, parsedValue);
     await atomicWriteConfig(paths.config, config);
   } finally {
     await releaseStateLock(lockPath);
   }
 
-  return { data: { set: true, key: keyPath, value: parsedValue } };
+  // Mask plaintext for keys in SECRET_CONFIG_KEYS to match CJS behavior at
+  // config.cjs:362-370 — without this, `gsd-sdk query config-set brave_search XXX`
+  // would echo the plaintext credential into machine-readable output. (#2997)
+  // The on-disk value is intentionally NOT masked — only the response.
+  const data: Record<string, unknown> = {
+    updated: true,
+    key: keyPath,
+    value: maskIfSecret(keyPath, parsedValue),
+  };
+  if (previousValue !== undefined) {
+    data.previousValue = maskIfSecret(keyPath, previousValue);
+  }
+  return { data };
 };
 
 // ─── configSetModelProfile ────────────────────────────────────────────────
@@ -261,7 +339,7 @@ export const configSet: QueryHandler = async (args, projectDir) => {
  * @returns QueryResult with { set: true, profile, agents }
  * @throws GSDError with Validation if profile is invalid
  */
-export const configSetModelProfile: QueryHandler = async (args, projectDir) => {
+export const configSetModelProfile: QueryHandler = async (args, projectDir, workstream) => {
   const profileName = args[0];
   if (!profileName) {
     throw new GSDError(
@@ -279,8 +357,9 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir) => {
   }
 
   // D6: Lock protection for read-modify-write
-  const paths = planningPaths(projectDir);
+  const paths = planningPaths(projectDir, workstream);
   const lockPath = await acquireStateLock(paths.config);
+  let previousProfile = 'balanced';
   try {
     let config: Record<string, unknown> = {};
     try {
@@ -290,13 +369,24 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir) => {
       // Start with empty config
     }
 
+    const prev =
+      typeof config.model_profile === 'string' ? config.model_profile.toLowerCase().trim() : '';
+    previousProfile = VALID_PROFILES.includes(prev) ? prev : 'balanced';
     config.model_profile = normalized;
     await atomicWriteConfig(paths.config, config);
   } finally {
     await releaseStateLock(lockPath);
   }
 
-  return { data: { set: true, profile: normalized, agents: MODEL_PROFILES } };
+  const agentToModelMap = getAgentToModelMapForProfile(normalized);
+  return {
+    data: {
+      updated: true,
+      profile: normalized,
+      previousProfile,
+      agentToModelMap,
+    },
+  };
 };
 
 // ─── configNewProject ─────────────────────────────────────────────────────
@@ -311,8 +401,8 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir) => {
  * @param projectDir - Project root directory
  * @returns QueryResult with { created: true, path } or { created: false, reason }
  */
-export const configNewProject: QueryHandler = async (args, projectDir) => {
-  const paths = planningPaths(projectDir);
+export const configNewProject: QueryHandler = async (args, projectDir, workstream) => {
+  const paths = planningPaths(projectDir, workstream);
 
   // Idempotent: don't overwrite existing config
   if (existsSync(paths.config)) {
@@ -384,6 +474,9 @@ export const configNewProject: QueryHandler = async (args, projectDir) => {
       code_review: true,
       code_review_depth: 'standard',
     },
+    ship: {
+      pr_body_sections: [],
+    },
     hooks: {
       context_warnings: true,
     },
@@ -400,25 +493,38 @@ export const configNewProject: QueryHandler = async (args, projectDir) => {
     ...userChoices,
     git: {
       ...(defaults.git as Record<string, unknown>),
+      ...((globalDefaults.git as Record<string, unknown>) || {}),
       ...((userChoices.git as Record<string, unknown>) || {}),
     },
     workflow: {
       ...(defaults.workflow as Record<string, unknown>),
+      ...((globalDefaults.workflow as Record<string, unknown>) || {}),
       ...((userChoices.workflow as Record<string, unknown>) || {}),
+    },
+    ship: {
+      ...(defaults.ship as Record<string, unknown>),
+      ...((globalDefaults.ship as Record<string, unknown>) || {}),
+      ...((userChoices.ship as Record<string, unknown>) || {}),
     },
     hooks: {
       ...(defaults.hooks as Record<string, unknown>),
+      ...((globalDefaults.hooks as Record<string, unknown>) || {}),
       ...((userChoices.hooks as Record<string, unknown>) || {}),
     },
     agent_skills: {
       ...((defaults.agent_skills as Record<string, unknown>) || {}),
+      ...((globalDefaults.agent_skills as Record<string, unknown>) || {}),
       ...((userChoices.agent_skills as Record<string, unknown>) || {}),
     },
     features: {
       ...((defaults.features as Record<string, unknown>) || {}),
+      ...((globalDefaults.features as Record<string, unknown>) || {}),
       ...((userChoices.features as Record<string, unknown>) || {}),
     },
   };
+
+  const ship = config.ship as Record<string, unknown>;
+  validateShipPrBodySections(ship.pr_body_sections);
 
   await atomicWriteConfig(paths.config, config);
 
@@ -437,13 +543,13 @@ export const configNewProject: QueryHandler = async (args, projectDir) => {
  * @param projectDir - Project root directory
  * @returns QueryResult with { ensured: true, section }
  */
-export const configEnsureSection: QueryHandler = async (args, projectDir) => {
+export const configEnsureSection: QueryHandler = async (args, projectDir, workstream) => {
   const sectionName = args[0];
   if (!sectionName) {
     throw new GSDError('Usage: config-ensure-section <section>', ErrorClassification.Validation);
   }
 
-  const paths = planningPaths(projectDir);
+  const paths = planningPaths(projectDir, workstream);
   let config: Record<string, unknown> = {};
   try {
     const raw = await readFile(paths.config, 'utf-8');

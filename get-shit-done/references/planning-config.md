@@ -54,19 +54,19 @@ Configuration options for `.planning/` directory behavior.
 - User must add `.planning/` to `.gitignore`
 - Useful for: OSS contributions, client projects, keeping planning private
 
-**Using gsd-tools.cjs (preferred):**
+**Using `gsd-sdk query` (preferred):**
 
 ```bash
 # Commit with automatic commit_docs + gitignore checks:
-node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs: update state" --files .planning/STATE.md
+gsd-sdk query commit "docs: update state" --files .planning/STATE.md
 
 # Load config via state load (returns JSON):
-INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" state load)
+INIT=$(gsd-sdk query state.load)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 # commit_docs is available in the JSON output
 
 # Or use init commands which include commit_docs:
-INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" init execute-phase "1")
+INIT=$(gsd-sdk query init.execute-phase "1")
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 # commit_docs is included in all init command outputs
 ```
@@ -76,7 +76,7 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 **Commit via CLI (handles checks automatically):**
 
 ```bash
-node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs: update state" --files .planning/STATE.md
+gsd-sdk query commit "docs: update state" --files .planning/STATE.md
 ```
 
 The CLI checks `commit_docs` config and gitignore status internally — no manual conditionals needed.
@@ -164,14 +164,14 @@ To use uncommitted mode:
 
 Use `init execute-phase` which returns all config as JSON:
 ```bash
-INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" init execute-phase "1")
+INIT=$(gsd-sdk query init.execute-phase "1")
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 # JSON output includes: branching_strategy, phase_branch_template, milestone_branch_template
 ```
 
 Or use `state load` for the config values:
 ```bash
-INIT=$(node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" state load)
+INIT=$(gsd-sdk query state.load)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 # Parse branching_strategy, phase_branch_template, milestone_branch_template from JSON
 ```
@@ -265,6 +265,18 @@ Set via `workflow.*` namespace in config.json (e.g., `"workflow": { "research": 
 | `workflow.code_review` | boolean | `true` | `true`, `false` | Enable built-in code review step in the ship workflow |
 | `workflow.code_review_depth` | string | `"standard"` | `"light"`, `"standard"`, `"deep"` | Depth level for code review analysis in the ship workflow |
 | `workflow._auto_chain_active` | boolean | `false` | `true`, `false` | Internal: tracks whether autonomous chaining is active |
+| `workflow.security_enforcement` | boolean | `true` | `true`, `false` | Enable threat-model-anchored security verification via `/gsd-secure-phase`. When `false`, security checks are skipped entirely |
+| `workflow.security_asvs_level` | number | `1` | `1`, `2`, `3` | OWASP ASVS verification level. Level 1 = opportunistic, Level 2 = standard, Level 3 = comprehensive |
+| `workflow.security_block_on` | string | `"high"` | `"high"`, `"medium"`, `"low"` | Minimum severity that blocks phase advancement |
+| `workflow.post_planning_gaps` | boolean | `true` | `true`, `false` | Post-planning gap report (#2493). After plans are generated, scans REQUIREMENTS.md and CONTEXT.md `<decisions>` against all PLAN.md files and emits a unified `Source \| Item \| Status` table. Non-blocking. Set to `false` to skip Step 13e of plan-phase. _Alias:_ `post_planning_gaps` is the flat-key form used in `CONFIG_DEFAULTS`; `workflow.post_planning_gaps` is the canonical namespaced form. |
+
+### Ship Fields
+
+Set via `ship.*` namespace in config.json. These fields affect `/gsd-ship` PRD-style pull request body composition only.
+
+| Key | Type | Default | Allowed Values | Description |
+|-----|------|---------|----------------|-------------|
+| `ship.pr_body_sections` | array | `[]` | Array of section objects | Append-only project-specific PR body sections. Each entry has `heading`, optional `enabled`, and one or more of `source`, `template`, or `fallback`. Disabled entries remain in onboarding config but do not render. Core sections remain required and cannot be removed or replaced. |
 
 ### Git Fields
 
@@ -315,11 +327,11 @@ Set via `learnings.*` namespace (e.g., `"learnings": { "max_inject": 5 }`). Used
 
 ### Intel Fields
 
-Set via `intel.*` namespace (e.g., `"intel": { "enabled": true }`). Controls the queryable codebase intelligence system consumed by `/gsd-intel`.
+Set via `intel.*` namespace (e.g., `"intel": { "enabled": true }`). Controls the queryable codebase intelligence system consumed by `/gsd-map-codebase --query`.
 
 | Key | Type | Default | Allowed Values | Description |
 |-----|------|---------|----------------|-------------|
-| `intel.enabled` | boolean | `false` | `true`, `false` | Enable queryable codebase intelligence system. When `true`, `/gsd-intel` commands build and query a JSON index in `.planning/intel/`. |
+| `intel.enabled` | boolean | `false` | `true`, `false` | Enable queryable codebase intelligence system. When `true`, `/gsd-map-codebase --query` builds and queries a JSON index in `.planning/intel/`. |
 
 ### Manager Fields
 
