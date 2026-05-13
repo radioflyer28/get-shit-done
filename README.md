@@ -4,7 +4,7 @@
 
 **English** · [Português](README.pt-BR.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md) · [한국어](README.ko-KR.md)
 
-**A light-weight meta-prompting, context engineering, and spec-driven development system for Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, and more.**
+**A light-weight meta-prompting, context engineering, and spec-driven development system for Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Pi, Copilot, Cursor, Windsurf, and more.**
 
 **Solves context rot — the quality degradation that happens as your AI fills its context window.**
 
@@ -134,7 +134,16 @@ Loop discuss → plan → execute → verify → ship until the milestone is don
 npx get-shit-done-cc@latest
 ```
 
-The installer prompts for your runtime (Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, and more) and whether to install globally or locally.
+The installer prompts for your runtime (Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Pi, Copilot, Cursor, Windsurf, and more) and whether to install globally or locally.
+
+For Pi specifically:
+
+```bash
+npx get-shit-done-cc@latest --pi --global
+pi install npm:pi-subagents   # optional; enables parallel GSD subagent flows
+```
+
+Then restart Pi and run `/skill:gsd-new-project`.
 
 ```bash
 claude --dangerously-skip-permissions
@@ -214,7 +223,7 @@ For the full configuration reference — all settings, git branching strategies,
 
 ## Troubleshooting
 
-**Commands not showing up?** Restart your runtime after install. GSD installs to `~/.claude/skills/gsd-*/` (Claude Code), `~/.codex/skills/gsd-*/` (Codex), or the equivalent for your runtime.
+**Commands not showing up?** Restart your runtime after install. GSD installs to `~/.claude/skills/gsd-*/` (Claude Code), `~/.codex/skills/gsd-*/` (Codex), `~/.pi/agent/skills/gsd-*/` (Pi), or the equivalent for your runtime.
 
 **Something broken?** Re-run the installer — it's idempotent:
 ```bash

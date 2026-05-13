@@ -513,6 +513,7 @@ Equivalent paths for other runtimes:
 - **Trae:** `~/.trae/` global or `./.trae/` local
 - **Qwen Code:** `~/.qwen/` global or `./.qwen/` local
 - **Hermes Agent:** `~/.hermes/` global or `./.hermes/` local
+- **Pi:** `~/.pi/agent/` global or `./.pi/` local
 - **CodeBuddy:** `~/.codebuddy/` global or `./.codebuddy/` local
 - **Cline:** `~/.cline/` global or project-root `.clinerules` local
 
@@ -598,7 +599,7 @@ verification.
 
 The installer (`bin/install.js`, ~10,700 lines) handles:
 
-1. **Runtime detection** — Interactive prompt or CLI flags (`--claude`, `--opencode`, `--gemini`, `--kilo`, `--codex`, `--copilot`, `--antigravity`, `--cursor`, `--windsurf`, `--augment`, `--trae`, `--qwen`, `--hermes`, `--codebuddy`, `--cline`, `--all`)
+1. **Runtime detection** — Interactive prompt or CLI flags (`--claude`, `--opencode`, `--gemini`, `--kilo`, `--codex`, `--copilot`, `--antigravity`, `--cursor`, `--windsurf`, `--augment`, `--trae`, `--qwen`, `--hermes`, `--pi`, `--codebuddy`, `--cline`, `--all`)
 2. **Location selection** — Global (`--global`) or local (`--local`)
 3. **File deployment** — Copies commands, skills, workflows, references, templates, agents, and hooks
 4. **Runtime adaptation** — Transforms file content per runtime:
@@ -614,6 +615,7 @@ The installer (`bin/install.js`, ~10,700 lines) handles:
   - Trae: Skills-first install to `~/.trae` / `./.trae` with no `settings.json` or hook integration
   - Qwen Code: Skills-first with Qwen-branded path and prompt rewrites
   - Hermes Agent: Category-based skills under `skills/gsd/`
+  - Pi: Agent Skills standard under `skills/gsd-*/SKILL.md`
   - CodeBuddy: Skills-first with CodeBuddy path and prompt rewrites
   - Cline: Writes `.clinerules` for rule-based integration
   - Augment Code: Skills-first with full skill conversion and config management
@@ -746,6 +748,7 @@ The migration-specific ownership and source snapshots live in
 | Trae | `~/.trae` | `./.trae` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Rule references under `rules/`; no GSD hooks |
 | Qwen Code | `~/.qwen` | `./.qwen` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
 | Hermes Agent | `~/.hermes` | `./.hermes` | `skills/gsd/DESCRIPTION.md` plus `skills/gsd/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
+| Pi | `~/.pi/agent` | `./.pi` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` for optional `pi-subagents` | No GSD hooks or statusline |
 | CodeBuddy | `~/.codebuddy` | `./.codebuddy` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
 | Cline | `~/.cline` | project root | `.clinerules` | Rules only | No GSD hooks or statusline |
 
@@ -760,7 +763,7 @@ available. The current source snapshot is 2026-05-11:
   updated 2026-05-06.
 - Codex: OpenAI Codex docs and `config-schema.json`; the installer also carries
   Codex 0.124.0 compatibility for agent table shape.
-- Copilot, Cursor, Cline, Augment, Hermes, and CodeBuddy: vendor docs for
+- Copilot, Cursor, Cline, Augment, Hermes, Pi, and CodeBuddy: vendor docs for
   custom instructions, rules, skills, or config.
 - Antigravity, Windsurf, and Trae: source-limited rows. The installer documents
   current compatibility shims, and migrations must refresh those sources before
@@ -770,7 +773,7 @@ available. The current source snapshot is 2026-05-11:
 
 1. **Tool name mapping** — Each runtime has its own tool names (e.g., Claude's `Bash` → Copilot's `execute`)
 2. **Hook event names** — Claude uses `PostToolUse`, Gemini uses `AfterTool`
-3. **Agent frontmatter** — Each runtime has its own agent definition format
+3. **Agent frontmatter** — Each runtime has its own agent definition format; Pi installs strip Claude-only fields and emit pi-subagents context/model/thinking fields
 4. **Path conventions** — Each runtime stores config in different directories
 5. **Model references** — `inherit` profile lets GSD defer to runtime's model selection
 
