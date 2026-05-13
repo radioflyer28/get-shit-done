@@ -368,7 +368,32 @@ Use --force to regenerate all docs, or re-run in Claude Code to get per-file pro
 After all decisions recorded, continue to detect_runtime_capabilities.
 </step>
 
-<!-- If Task tool is unavailable at runtime, skip dispatch/collect waves and use sequential_generation instead. -->
+<step name="codex_parallel_prompt" condition="Codex spawn_agent and wait_agent are available, documentation queue has more than one independent item, and neither --parallel nor --no-parallel was provided">
+Ask whether to use parallel Codex subagents for this invocation before dispatching
+doc-writer waves.
+
+Use `AskUserQuestion` when available. In Codex, the installed adapter maps this
+to `request_user_input`; if that tool is unavailable, ask as plain text and wait
+for the user's reply.
+
+```text
+This docs update can run independent doc-writer subagents in parallel in Codex.
+Use parallel subagents for this run?
+
+1. Yes - run parallel doc-writer subagents
+2. No - generate docs sequentially inline
+```
+
+If the user chooses Yes: treat that as explicit Codex subagent authorization for
+this invocation, then continue to `dispatch_wave_1`.
+
+If the user chooses No, gives an unclear answer, or asks to avoid subagents:
+continue to `sequential_generation`.
+
+Do not call `spawn_agent` until the user has explicitly confirmed this prompt.
+</step>
+
+<!-- If Task/subagent tooling is unavailable, or Codex parallelism is declined, skip dispatch/collect waves and use sequential_generation instead. -->
 
 <step name="dispatch_wave_1" condition="Task tool is available">
 **Read the work manifest first:** `Read .planning/tmp/docs-work-manifest.json` — use `canonical_queue` items with `wave: 1` for this step.
@@ -760,10 +785,10 @@ Collect confirmations via TaskOutput for all package agents. Note failures in th
 Continue to commit_docs.
 </step>
 
-<step name="sequential_generation" condition="Task tool is NOT available (e.g. Antigravity, Gemini CLI, Codex, Copilot)">
+<step name="sequential_generation" condition="Task/subagent tool is NOT available, or Codex subagents were declined or not explicitly authorized for this invocation (e.g. Antigravity, Gemini CLI, Copilot, Codex without explicit subagent permission)">
 **Read the work manifest first:** `Read .planning/tmp/docs-work-manifest.json` — use `canonical_queue` items for generation order. Update `status` after each doc is generated. Write the updated manifest back to disk after all docs are complete.
 
-When the `Task` tool is unavailable, generate docs sequentially in the current context. This step replaces dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
+When the `Task` tool is unavailable, or when Codex `spawn_agent` exists but the user declined or did not explicitly authorize subagents for this invocation, generate docs sequentially in the current context. This step replaces codex_parallel_prompt, dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
 
 **IMPORTANT:** Do NOT use `browser_subagent`, `Explore`, or any browser-based tool. Use only file system tools (Read, Bash, Write, Grep, Glob, or equivalent tools available in your runtime).
 
