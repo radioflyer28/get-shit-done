@@ -87,6 +87,7 @@ Unique value:
 - Interoperability with GSD v1 `.planning/` projects for mixed-runtime teams.
 - A lightweight compatibility layer for Pi users who need to run the same GSD skills/workflows as teammates using Claude Code, Codex, or other GSD v1 runtimes.
 - Preservation of canonical GSD v1 artifacts and workflows rather than migration to, or competition with, GSDv2.
+- Avoids forcing Pi users to convert GSD v1 project state to GSDv2 just to contribute, especially when there is no guaranteed path back to GSD v1 `.planning/` artifacts for teammates.
 
 Scope:
 
@@ -113,7 +114,7 @@ Out of scope:
 
 Draft Feature Request outline:
 
-- Problem: Pi users cannot reliably participate in GSD v1 codebases where the team already shares `.planning/` artifacts and GSD v1 workflows.
+- Problem: Pi users cannot reliably participate in GSD v1 codebases where the team already shares `.planning/` artifacts and GSD v1 workflows; forcing conversion to GSDv2 creates an unnecessary artifact-format split with no guaranteed path back to GSD v1 state.
 - Addition: add `--pi` install/runtime support, Pi skill/engine paths, generated Pi agent conversion, existing model ID resolution, Pi-native thinking mapping where applicable, and optional `pi-subagents` adapter guidance.
 - Acceptance: global and local Pi installs work, generated Pi agents avoid Claude-only frontmatter, Pi skills avoid Claude path leaks, `.planning/` artifacts remain canonical and unchanged, and workflows fall back sequentially when `subagent` is unavailable.
 - Maintenance burden: low-to-moderate; the implementation should stay centralized in installer/runtime conversion code and avoid hand-editing every skill or adding Pi extension surfaces.

@@ -23,6 +23,8 @@ Some teams and open-source projects already use GSD v1 `.planning/` artifacts as
 
 The problem is not that Pi lacks its own workflow direction. The problem is interoperability: a Pi user should be able to work on the same repository, read and update the same `.planning/` artifacts, and use the same GSD v1 workflows as collaborators using other GSD v1 runtimes.
 
+Forcing Pi users to convert a GSD v1 project to GSDv2 just to get work done would be an undue burden for mixed-runtime teams. It also creates a collaboration dead end: once work happens in GSDv2 artifacts, there is no guaranteed path back to the GSD v1 `.planning/` artifacts that other developers in the repository still use.
+
 ## What This Feature Adds
 
 This feature adds a lightweight Pi compatibility layer for GSD v1 projects.
@@ -118,7 +120,7 @@ This should be additive and backward compatible:
 ## Alternatives Considered
 
 1. Use GSDv2 instead of adding GSD v1 Pi support.
-   GSDv2 may be a good Pi-native path for some users, but it does not solve interoperability for repositories and teams already standardized on GSD v1 `.planning/` artifacts.
+   GSDv2 may be a good Pi-native path for some users, but it does not solve interoperability for repositories and teams already standardized on GSD v1 `.planning/` artifacts. Requiring conversion would force Pi users onto a different artifact format and leave no guaranteed way to push their work back as GSD v1 planning state for collaborators.
 
 2. Maintain separate Pi-native copies of every GSD agent and workflow.
    Rejected because prior review feedback flagged duplicate agents as a drift risk. Generated conversion from canonical GSD sources is lower maintenance.
@@ -142,5 +144,7 @@ This is not intended to compete with or replace GSDv2. The goal is compatibility
 
 - Pi users can participate in GSD v1 repositories.
 - `.planning/` remains the shared source of project state.
+- Pi users are not forced to convert project state to GSDv2 just to contribute.
+- Work done from Pi remains shareable with teammates who continue using GSD v1 artifacts.
 - Runtime-specific behavior stays in installer/converter seams.
 - Optional subagent support improves ergonomics when available but is not required.
