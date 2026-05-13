@@ -8198,7 +8198,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     }
   } else if (isPi) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
+    const gsdSrc = _stageSkills(path.join(src, 'commands', 'gsd'));
     copyCommandsAsClaudeSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime, isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
