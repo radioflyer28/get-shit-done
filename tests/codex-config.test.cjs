@@ -109,7 +109,7 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('</codex_skill_adapter>'), 'has closing tag');
     assert.ok(result.includes('## A. Skill Invocation'), 'has section A');
     assert.ok(result.includes('## B. AskUserQuestion'), 'has section B');
-    assert.ok(result.includes('## C. Task() → spawn_agent'), 'has section C');
+    assert.ok(result.includes('## C. Task()/Agent() → spawn_agent'), 'has section C');
   });
 
   test('includes correct invocation syntax', () => {
@@ -134,7 +134,10 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('spawn_agent'), 'maps to spawn_agent');
     assert.ok(result.includes('agent_type'), 'maps subagent_type to agent_type');
     assert.ok(result.includes('fork_context'), 'documents fork_context default');
-    assert.ok(result.includes('wait(ids)'), 'documents parallel wait pattern');
+    assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent to spawn_agent');
+    assert.ok(result.includes('run_in_background=true'), 'documents background fan-out');
+    assert.ok(result.includes('wait_agent([...])'), 'documents parallel wait pattern');
+    assert.ok(result.includes('--parallel'), 'documents explicit subagent authorization flag');
     assert.ok(result.includes('close_agent'), 'documents close_agent cleanup');
     assert.ok(result.includes('CHECKPOINT'), 'documents result markers');
   });

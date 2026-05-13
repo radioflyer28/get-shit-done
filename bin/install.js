@@ -2351,11 +2351,13 @@ Execute mode fallback:
   (c) the workflow's documented contract says defaults are safe (e.g. autonomous lifecycle paths).
 - Do NOT write workflow artifacts (CONTEXT.md, DISCUSSION-LOG.md, PLAN.md, checkpoint files) until the user has answered the plain-text questions or one of (a)-(c) above applies. Surfacing the questions and waiting is the correct response — silently defaulting and writing artifacts is the #3018 failure mode.
 
-## C. Task() → spawn_agent Mapping
-GSD workflows use \`Task(...)\` (Claude Code syntax). Translate to Codex collaboration tools:
+## C. Task()/Agent() → spawn_agent Mapping
+GSD workflows use \`Task(...)\` and \`Agent(...)\` (Claude Code syntax). Translate both to Codex collaboration tools:
 
 Direct mapping:
 - \`Task(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
+- \`Agent(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
+- \`run_in_background=true\` → spawn all independent agents first, then collect them with \`wait_agent([...])\`
 - \`Task(model="...")\` → omit. \`spawn_agent\` has no inline \`model\` parameter;
   GSD embeds the resolved per-agent model directly into each agent's \`.toml\`
   at install time so \`model_overrides\` from \`.planning/config.json\` and
@@ -2370,9 +2372,12 @@ Spawn restriction:
 - Codex restricts \`spawn_agent\` to cases where the user has explicitly
   requested sub-agents. When automatic spawning is not permitted, do the
   work inline in the current agent rather than attempting to force a spawn.
+- Treat explicit workflow flags such as \`--parallel\` or user phrases like
+  "use parallel subagents" / "spawn subagents" as authorization for the
+  current skill invocation only.
 
 Parallel fan-out:
-- Spawn multiple agents → collect agent IDs → \`wait(ids)\` for all to complete
+- Spawn multiple agents → collect agent IDs → \`wait_agent([...])\` for all to complete
 
 Result parsing:
 - Look for structured markers in agent output: \`CHECKPOINT\`, \`PLAN COMPLETE\`, \`SUMMARY\`, etc.
