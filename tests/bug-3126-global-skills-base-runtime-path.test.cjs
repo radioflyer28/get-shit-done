@@ -10,7 +10,7 @@
 //   [agent-skills] WARNING: Global skill not found at "~/.cursor/skills/X/SKILL.md" — skipping
 //
 // Fix introduces get-shit-done/bin/lib/runtime-homes.cjs with first-class
-// support for all 15 supported runtimes, including:
+// support for all supported runtimes, including:
 //   - hermes: nested skills/gsd/<skillName>/ layout (#2841)
 //   - cline: rules-based, returns null (no skills directory)
 //   - CLAUDE_CONFIG_DIR env var for Claude (was missing)
@@ -54,6 +54,7 @@ describe('bug #3126: runtime-homes getGlobalConfigDir — defaults', () => {
     ['trae',        path.join(os.homedir(), '.trae')],
     ['qwen',        path.join(os.homedir(), '.qwen')],
     ['hermes',      path.join(os.homedir(), '.hermes')],
+    ['pi',          path.join(os.homedir(), '.pi', 'agent')],
     ['codebuddy',   path.join(os.homedir(), '.codebuddy')],
     ['cline',       path.join(os.homedir(), '.cline')],
     ['opencode',    path.join(os.homedir(), '.config', 'opencode')],
@@ -65,6 +66,7 @@ describe('bug #3126: runtime-homes getGlobalConfigDir — defaults', () => {
       const envKeys = ['CLAUDE_CONFIG_DIR','CURSOR_CONFIG_DIR','GEMINI_CONFIG_DIR',
         'CODEX_HOME','COPILOT_CONFIG_DIR','ANTIGRAVITY_CONFIG_DIR','WINDSURF_CONFIG_DIR',
         'AUGMENT_CONFIG_DIR','TRAE_CONFIG_DIR','QWEN_CONFIG_DIR','HERMES_HOME',
+        'PI_AGENT_HOME','PI_CONFIG_DIR',
         'CODEBUDDY_CONFIG_DIR','CLINE_CONFIG_DIR','OPENCODE_CONFIG_DIR','KILO_CONFIG_DIR',
         'XDG_CONFIG_HOME'];
       const saved = {};
@@ -106,14 +108,14 @@ describe('bug #3126: runtime-homes env-var overrides', () => {
   test('opencode uses XDG_CONFIG_HOME when OPENCODE_CONFIG_DIR absent', () => {
     withEnv('OPENCODE_CONFIG_DIR', undefined, () => {
       withEnv('XDG_CONFIG_HOME', '/xdg', () => {
-        assert.strictEqual(getGlobalConfigDir('opencode'), '/xdg/opencode');
+        assert.strictEqual(getGlobalConfigDir('opencode'), path.join('/xdg', 'opencode'));
       });
     });
   });
   test('kilo uses XDG_CONFIG_HOME when KILO_CONFIG_DIR absent', () => {
     withEnv('KILO_CONFIG_DIR', undefined, () => {
       withEnv('XDG_CONFIG_HOME', '/xdg', () => {
-        assert.strictEqual(getGlobalConfigDir('kilo'), '/xdg/kilo');
+        assert.strictEqual(getGlobalConfigDir('kilo'), path.join('/xdg', 'kilo'));
       });
     });
   });

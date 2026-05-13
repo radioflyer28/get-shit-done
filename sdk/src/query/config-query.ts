@@ -125,6 +125,7 @@ type RuntimeTierName = 'opus' | 'sonnet' | 'haiku';
 interface RuntimeTierEntry {
   model?: string;
   reasoning_effort?: string;
+  thinking?: string;
 }
 
 function isRuntimeTierName(value: string): value is RuntimeTierName {
@@ -222,7 +223,10 @@ export const resolveModel: QueryHandler = async (args, projectDir, workstream) =
   const tier = typeof phaseTier === 'string' ? phaseTier : alias;
   const runtimeTier = resolveRuntimeTier(config as Record<string, unknown>, tier);
   if (runtimeTier?.model) {
-    return { data: { model: runtimeTier.model, profile } };
+    const data: Record<string, unknown> = { model: runtimeTier.model, profile };
+    if (runtimeTier.thinking) data.thinking = runtimeTier.thinking;
+    if (runtimeTier.reasoning_effort) data.reasoning_effort = runtimeTier.reasoning_effort;
+    return { data };
   }
 
   if (resolveModelIds === 'omit') {

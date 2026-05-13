@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 interface RuntimeTierEntry {
   model: string;
   reasoning_effort?: string;
+  thinking?: string;
 }
 
 type RuntimeTierTable = Record<string, Record<string, RuntimeTierEntry | null>>;
@@ -65,6 +66,14 @@ export function runtimesWithReasoningEffort(): Set<string> {
   return new Set(
     Object.entries(catalog.runtimeTierDefaults)
       .filter(([, tiers]) => Object.values(tiers).some((entry) => entry && entry.reasoning_effort))
+      .map(([runtime]) => runtime)
+  );
+}
+
+export function runtimesWithThinking(): Set<string> {
+  return new Set(
+    Object.entries(catalog.runtimeTierDefaults)
+      .filter(([, tiers]) => Object.values(tiers).some((entry) => entry && entry.thinking))
       .map(([runtime]) => runtime)
   );
 }

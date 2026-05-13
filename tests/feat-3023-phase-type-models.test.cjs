@@ -269,7 +269,7 @@ describe('#3023 + #3030 CR: resolveReasoningEffortInternal honors phase-type tie
 
   test('phase-type override flips both model AND reasoning_effort to the same tier (Codex)', () => {
     // The CR Major bug: previously the model was resolved from the
-    // phase-type tier (opus → gpt-5.4) but reasoning_effort still came
+    // phase-type tier (opus -> gpt-5.5) but reasoning_effort still came
     // from the profile-derived sonnet tier (medium) — leading to a
     // mismatched (model, effort) pair on Codex spawn.
     writeConfig(projectDir, {
@@ -278,7 +278,7 @@ describe('#3023 + #3030 CR: resolveReasoningEffortInternal honors phase-type tie
       models: { execution: 'opus' },
     });
     // gsd-executor's profile tier under balanced is sonnet, so without
-    // the phase-type lookup mirror, model would resolve to opus (xhigh)
+    // the phase-type lookup mirror, model would resolve to opus (high)
     // but effort to medium. Both must derive from the same tier source.
     const effort = resolveReasoningEffortInternal(projectDir, 'gsd-executor');
     // The exact effort value depends on the runtime tier map's opus row;
