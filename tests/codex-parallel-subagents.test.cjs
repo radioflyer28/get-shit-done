@@ -1,4 +1,4 @@
-// allow-test-rule: source-text-is-product
+// allow-test-rule: source-text-is-the-product
 
 /**
  * Regression coverage for Codex subagent parallelism in GSD workflows.
@@ -33,7 +33,7 @@ describe('Codex parallel subagent adapter', () => {
     assert.match(header, /Agent\(subagent_type="X", prompt="Y"\).*spawn_agent\(agent_type="X", message="Y"\)/s);
     assert.match(header, /run_in_background=true.*wait_agent\(\[\.\.\.\]\)/s);
     assert.match(header, /Task\(model="\.\.\."\)` \/ `Agent\(model="\.\.\."\)` → pass `model="\.\.\."` to `spawn_agent`/);
-    assert.match(header, /reasoning_effort="low\|medium\|high\|xhigh".*pass `reasoning_effort` to `spawn_agent`/s);
+    assert.match(header, /reasoning_effort="low\|medium\|high\|xhigh".*pass `reasoning_effort`\s+to `spawn_agent`/s);
     assert.match(header, /--parallel/);
     assert.match(header, /--no-parallel/);
     assert.match(header, /use parallel subagents/);
