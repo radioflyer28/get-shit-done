@@ -39,6 +39,13 @@ Out of scope:
 - Pi agent conversion.
 - Codex parallel subagent workflow changes.
 
+Draft Feature Request outline:
+
+- Problem: runtime-specific model resolution currently has no generic place to carry non-Codex metadata such as Pi thinking levels.
+- Addition: allow runtime tier entries and runtime-scoped overrides to carry optional model metadata while preserving existing Claude and Codex behavior.
+- Acceptance: model resolution returns metadata only for runtimes that declare it, Codex `reasoning_effort` behavior is unchanged, and unknown runtimes remain safe.
+- Maintenance burden: low; this extends the existing catalog/resolver seam instead of adding a new configuration path.
+
 ### 2. Pi Runtime Integration
 
 Purpose: add first-class Pi install/runtime support while keeping `pi-subagents` optional.
@@ -57,6 +64,13 @@ Out of scope:
 - Codex-specific parallel subagent prompts.
 - Codex model family refresh.
 
+Draft Feature Request outline:
+
+- Problem: Pi users cannot install GSD into Pi-native paths or use GSD's agent-heavy workflows through Pi-compatible subagents.
+- Addition: add `--pi` install/runtime support, Pi skill/engine paths, Pi agent conversion, and optional `pi-subagents` adapter guidance.
+- Acceptance: global and local Pi installs work, generated Pi agents avoid Claude-only frontmatter, Pi skills avoid Claude path leaks, and workflows fall back sequentially when `subagent` is unavailable.
+- Maintenance burden: moderate; the implementation should stay centralized in installer/runtime conversion code and avoid hand-editing every skill.
+
 ### 3. Codex Parallel Subagent Runtime Updates
 
 Purpose: make GSD skills prompt and use Codex parallel subagents consistently with the Claude runtime behavior.
@@ -72,6 +86,13 @@ Out of scope:
 
 - Pi installer/runtime behavior.
 - Generic model-selection plumbing already covered by the foundation PR.
+
+Draft Feature Request outline:
+
+- Problem: GSD workflows that are parallel in Claude currently degrade to sequential behavior in Codex even when Codex subagent tools are available.
+- Addition: add Codex runtime guidance for explicit `spawn_agent`/`wait_agent` parallelism, proactive user confirmation prompts, and refreshed Codex model tier defaults.
+- Acceptance: map-codebase/docs-update style workflows can use Codex parallel subagents only after explicit user authorization, sequential fallback remains available, and model defaults resolve to the newer GPT/Codex family names.
+- Maintenance burden: moderate; changes should remain in central adapter text plus the few workflows whose parallel behavior is already explicit.
 
 ## Branch Strategy
 
