@@ -1,4 +1,4 @@
-// allow-test-rule: source-text-is-product
+// allow-test-rule: source-text-is-the-product
 
 /**
  * Regression coverage for Codex subagent parallelism in GSD workflows.
@@ -32,18 +32,24 @@ describe('Codex parallel subagent adapter', () => {
     assert.match(header, /Task\(subagent_type="X", prompt="Y"\).*spawn_agent\(agent_type="X", message="Y"\)/s);
     assert.match(header, /Agent\(subagent_type="X", prompt="Y"\).*spawn_agent\(agent_type="X", message="Y"\)/s);
     assert.match(header, /run_in_background=true.*wait_agent\(\[\.\.\.\]\)/s);
+    assert.match(header, /Task\(model="\.\.\."\)` \/ `Agent\(model="\.\.\."\)` → pass `model="\.\.\."` to `spawn_agent`/);
     assert.match(header, /--parallel/);
+    assert.match(header, /--no-parallel/);
     assert.match(header, /use parallel subagents/);
+    assert.match(header, /proactively ask whether to use parallel subagents/);
   });
 });
 
 describe('map-codebase Codex parallel workflow', () => {
-  test('documents --parallel as explicit Codex spawn_agent authorization', () => {
+  test('documents --parallel and prompt confirmation as Codex spawn_agent authorization', () => {
     const workflow = fs.readFileSync(MAP_CODEBASE, 'utf8');
 
     assert.match(workflow, /<step name="parse_codex_parallel_flag"/);
     assert.match(workflow, /CODEX_PARALLEL_REQUESTED=true/);
-    assert.match(workflow, /Codex spawn_agent and wait_agent are available AND explicit --parallel authorization/);
+    assert.match(workflow, /CODEX_PARALLEL_DECLINED=true/);
+    assert.match(workflow, /<step name="codex_parallel_prompt"/);
+    assert.match(workflow, /Use parallel subagents for this run\?/);
+    assert.match(workflow, /Codex spawn_agent and wait_agent are available AND explicit parallel authorization/);
     assert.match(workflow, /spawn_agent\(/);
     assert.match(workflow, /wait_agent\(\[tech_agent_id, arch_agent_id, quality_agent_id, concerns_agent_id\]\)/);
   });
@@ -59,8 +65,9 @@ describe('map-codebase Codex parallel workflow', () => {
   test('command frontmatter advertises --parallel', () => {
     const command = fs.readFileSync(MAP_COMMAND, 'utf8');
 
-    assert.match(command, /argument-hint: "\[--parallel\]/);
+    assert.match(command, /argument-hint: "\[--parallel\|--no-parallel\]/);
     assert.match(command, /Explicitly authorizes Codex to use `spawn_agent` \/ `wait_agent`/);
+    assert.match(command, /Forces sequential inline mapping/);
   });
 });
 
@@ -69,7 +76,9 @@ describe('docs-update Codex parallel workflow', () => {
     const workflow = fs.readFileSync(DOCS_UPDATE, 'utf8');
 
     assert.doesNotMatch(workflow, /Task tool is NOT available \(e\.g\.[^)]*Codex/);
-    assert.match(workflow, /Codex subagents were not explicitly authorized/);
-    assert.match(workflow, /Codex `spawn_agent` exists but the user did not explicitly request subagents/);
+    assert.match(workflow, /<step name="codex_parallel_prompt"/);
+    assert.match(workflow, /Use parallel subagents for this run\?/);
+    assert.match(workflow, /Codex subagents were declined or not explicitly authorized/);
+    assert.match(workflow, /Codex `spawn_agent` exists but the user declined or did not explicitly authorize subagents/);
   });
 });
