@@ -57,6 +57,14 @@ describe('model catalog runtime defaults parity (#3229)', () => {
     });
   });
 
+  test('Codex defaults carry GPT/Codex models and reasoning levels', () => {
+    assert.deepStrictEqual(catalog.runtimeTierDefaults.codex, {
+      opus: { model: 'gpt-5.5', reasoning_effort: 'high' },
+      sonnet: { model: 'gpt-5.3-codex', reasoning_effort: 'medium' },
+      haiku: { model: 'gpt-5.4-mini', reasoning_effort: 'low' },
+    });
+  });
+
   test('Group B runtimes remain documented as having no built-in defaults', () => {
     const groupB = Object.keys(catalog.runtimeTierDefaults)
       .filter(runtime => !catalog.runtimeTierDefaults[runtime].opus);

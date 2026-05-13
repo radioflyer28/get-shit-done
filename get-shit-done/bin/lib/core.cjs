@@ -1356,8 +1356,8 @@ function _resetRuntimeWarningCacheForTests() {
  * paths). Always merges built-in defaults with user overrides at the field
  * level so partial overrides keep the unspecified fields:
  *
- *   `{ codex: { opus: "gpt-5-pro" } }`           keeps reasoning_effort: 'xhigh'
- *   `{ codex: { opus: { reasoning_effort: 'low' } } }` keeps model: 'gpt-5.4'
+ *   `{ codex: { opus: "gpt-5-pro" } }`           keeps reasoning_effort: 'high'
+ *   `{ codex: { opus: { reasoning_effort: 'low' } } }` keeps model: 'gpt-5.5'
  *
  * Without this field-merge, the documented string-shorthand example silently
  * dropped reasoning_effort and a partial-object override silently dropped the
@@ -1595,7 +1595,7 @@ function resolveReasoningEffortInternal(cwd, agentType) {
   // install path actually accepts it. Adding a new runtime here is the only
   // way to enable effort propagation — overrides cannot bypass the gate.
   // Without this, a typo in `runtime` (e.g. `"codx"`) plus a user override
-  // for that typo would leak `xhigh` into a Claude or unknown install
+  // for that typo would leak `high` into a Claude or unknown install
   // (review finding #3).
   if (!RUNTIMES_WITH_REASONING_EFFORT.has(config.runtime)) return null;
   // Per-agent override means user supplied a fully-qualified ID; reasoning_effort
