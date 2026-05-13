@@ -42,6 +42,11 @@
       "sonnet": { "model": "anthropic/claude-sonnet-4-6" },
       "haiku": { "model": "anthropic/claude-haiku-4-5" }
     },
+    "pi": {
+      "opus": { "model": "openai-codex/gpt-5.5", "thinking": "high" },
+      "sonnet": { "model": "openai-codex/gpt-5.3-codex", "thinking": "medium" },
+      "haiku": { "model": "openai-codex/gpt-5.4-mini", "thinking": "low" }
+    },
     "kilo": {
       "opus": null,
       "sonnet": null,

@@ -18,6 +18,8 @@ const {
   convertClaudeToOpencodeFrontmatter,
   convertClaudeToKiloFrontmatter,
   convertClaudeToGeminiAgent,
+  convertClaudeAgentToPiSubagentAgent,
+  injectPiSubagentsSkillAdapter,
   neutralizeAgentReferences,
 } = require('../bin/install.js');
 
@@ -289,6 +291,73 @@ Offer choices via AskUserQuestion when user input is needed.
     assert.ok(!frontmatter.includes('AskUserQuestion'), 'does not preserve Claude-only AskUserQuestion tool');
     assert.ok(!result.includes('AskUserQuestion'), 'does not leave Claude-only tool references in the body');
     assert.ok(result.includes('conversational prompting'), 'uses runtime-neutral body wording for user prompts');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pi / pi-subagents agent + skill adapter conversion
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('convertClaudeAgentToPiSubagentAgent', () => {
+  test('emits pi-subagents frontmatter and omits Claude-only fields', () => {
+    const result = convertClaudeAgentToPiSubagentAgent(SAMPLE_AGENT, {
+      model: 'openai-codex/gpt-5.5',
+      thinking: 'high',
+    });
+    const frontmatter = result.split('---')[1];
+
+    assert.ok(frontmatter.includes('name: gsd-executor'), 'name should be preserved');
+    assert.ok(frontmatter.includes('description: "Executes GSD plans with atomic commits"'), 'description should be preserved and quoted');
+    assert.ok(frontmatter.includes('systemPromptMode: append'), 'systemPromptMode should append Pi base prompt');
+    assert.ok(frontmatter.includes('inheritProjectContext: true'), 'project context should be inherited');
+    assert.ok(frontmatter.includes('inheritSkills: false'), 'skill catalog should not be inherited into child agents');
+    assert.ok(frontmatter.includes('defaultContext: fresh'), 'fresh child context should be default');
+    assert.ok(frontmatter.includes('maxSubagentDepth: 0'), 'nested delegation should be disabled');
+    assert.ok(frontmatter.includes('model: "openai-codex/gpt-5.5"'), 'model should be emitted when resolved');
+    assert.ok(frontmatter.includes('thinking: "high"'), 'thinking should be emitted when resolved');
+    assert.ok(!frontmatter.includes('tools:'), 'tools should be omitted so Pi gives normal builtins');
+    assert.ok(!frontmatter.includes('color:'), 'color should be stripped');
+    assert.ok(!frontmatter.includes('hooks:'), 'hooks should be stripped');
+    assert.ok(!frontmatter.includes('skills:'), 'Claude skills field should be stripped');
+  });
+
+  test('rewrites Claude paths and project instructions for Pi', () => {
+    const input = `---
+name: gsd-planner
+description: Plan things
+tools: Read
+---
+
+Read CLAUDE.md and ~/.claude/get-shit-done/references/gates.md.
+Check .claude/skills/ for project skills. Claude Code should follow project rules.`;
+
+    const result = convertClaudeAgentToPiSubagentAgent(input);
+    assert.ok(result.includes('AGENTS.md'), 'CLAUDE.md should become AGENTS.md');
+    assert.ok(result.includes('~/.pi/agent/get-shit-done/references/gates.md'), 'global Claude path should become Pi agent path');
+    assert.ok(result.includes('.pi/skills/'), 'local Claude path should become Pi path');
+    assert.ok(result.includes('Pi should follow project rules.'), 'runtime branding should become Pi');
+    assert.ok(!result.includes('CLAUDE.md'), 'no CLAUDE.md leak');
+    assert.ok(!result.includes('.claude/'), 'no .claude path leak');
+    assert.ok(!result.includes('Claude Code'), 'no Claude Code branding leak');
+  });
+});
+
+describe('injectPiSubagentsSkillAdapter', () => {
+  test('adds optional pi-subagents mapping guidance once', () => {
+    const input = `---
+name: gsd-plan-phase
+description: Plan
+---
+
+Body.`;
+    const result = injectPiSubagentsSkillAdapter(input);
+    const reinjected = injectPiSubagentsSkillAdapter(result);
+
+    assert.ok(result.includes('<pi_subagents_adapter>'), 'adapter block should be present');
+    assert.ok(result.includes('subagent({ agent: "x", task: "y", context: "fresh" })'), 'Agent mapping should be documented');
+    assert.ok(result.includes('run_in_background=true'), 'background mapping should be documented');
+    assert.ok(result.includes('TaskOutput'), 'TaskOutput mapping should be documented');
+    assert.equal((reinjected.match(/<pi_subagents_adapter>/g) || []).length, 1, 'adapter should be idempotent');
   });
 });
 

@@ -78,6 +78,10 @@ export function getRuntimeConfigDir(runtime: Runtime): string {
       return process.env.CLINE_CONFIG_DIR ? expandTilde(process.env.CLINE_CONFIG_DIR) : join(homedir(), '.cline');
     case 'hermes':
       return process.env.HERMES_HOME ? expandTilde(process.env.HERMES_HOME) : join(homedir(), '.hermes');
+    case 'pi':
+      if (process.env.PI_AGENT_HOME) return expandTilde(process.env.PI_AGENT_HOME);
+      if (process.env.PI_CONFIG_DIR) return expandTilde(process.env.PI_CONFIG_DIR);
+      return join(homedir(), '.pi', 'agent');
     default:
       throw new Error(`Unknown runtime: ${String(runtime)}`);
   }

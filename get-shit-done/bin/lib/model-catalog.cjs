@@ -90,6 +90,12 @@ const RUNTIMES_WITH_REASONING_EFFORT = new Set(
     .map(([runtime]) => runtime)
 );
 
+const RUNTIMES_WITH_THINKING = new Set(
+  Object.entries(catalog.runtimeTierDefaults)
+    .filter(([, tiers]) => Object.values(tiers).some((entry) => entry && entry.thinking))
+    .map(([runtime]) => runtime)
+);
+
 function nextTier(currentTier) {
   const order = ['light', 'standard', 'heavy'];
   const idx = order.indexOf(String(currentTier));
@@ -130,6 +136,7 @@ module.exports = {
   RUNTIME_PROFILE_MAP,
   KNOWN_RUNTIMES,
   RUNTIMES_WITH_REASONING_EFFORT,
+  RUNTIMES_WITH_THINKING,
   nextTier,
   formatAgentToModelMapAsTable,
   getAgentToModelMapForProfile,

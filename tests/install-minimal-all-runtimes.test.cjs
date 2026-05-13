@@ -57,6 +57,7 @@ const LOCAL_DIR_NAME = {
   augment: '.augment',
   trae: '.trae',
   qwen: '.qwen',
+  pi: '.pi',
   codebuddy: '.codebuddy',
   cline: '.', // Cline writes to project root
 };
@@ -75,6 +76,7 @@ const SKILL_RUNTIMES = [
   'augment',
   'trae',
   'qwen',
+  'pi',
   'codebuddy',
 ];
 

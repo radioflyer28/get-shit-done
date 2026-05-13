@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { GSDError } from '../errors.js';
 import {
@@ -304,6 +304,7 @@ const RUNTIME_ENV_VARS = [
   'GEMINI_CONFIG_DIR', 'CODEX_HOME', 'COPILOT_CONFIG_DIR', 'ANTIGRAVITY_CONFIG_DIR',
   'CURSOR_CONFIG_DIR', 'WINDSURF_CONFIG_DIR', 'AUGMENT_CONFIG_DIR', 'TRAE_CONFIG_DIR',
   'QWEN_CONFIG_DIR', 'CODEBUDDY_CONFIG_DIR', 'CLINE_CONFIG_DIR', 'HERMES_HOME',
+  'PI_AGENT_HOME', 'PI_CONFIG_DIR',
 ] as const;
 
 describe('getRuntimeConfigDir', () => {
@@ -334,6 +335,7 @@ describe('getRuntimeConfigDir', () => {
     codebuddy: join(homedir(), '.codebuddy'),
     cline: join(homedir(), '.cline'),
     hermes: join(homedir(), '.hermes'),
+    pi: join(homedir(), '.pi', 'agent'),
   };
 
   for (const runtime of SUPPORTED_RUNTIMES) {
@@ -356,6 +358,7 @@ describe('getRuntimeConfigDir', () => {
     ['codebuddy', 'CODEBUDDY_CONFIG_DIR', '/x/codebuddy'],
     ['cline', 'CLINE_CONFIG_DIR', '/x/cline'],
     ['hermes', 'HERMES_HOME', '/x/hermes'],
+    ['pi', 'PI_AGENT_HOME', '/x/pi-agent'],
     ['opencode', 'OPENCODE_CONFIG_DIR', '/x/opencode'],
     ['kilo', 'KILO_CONFIG_DIR', '/x/kilo'],
   ];
@@ -468,8 +471,8 @@ describe('runtime-global skills directory helpers', () => {
   it('appends /skills for runtimes with a global skills directory', () => {
     process.env.CODEX_HOME = '/codex';
     expect(resolveGlobalSkillsBase('codex')).toBe(join('/codex', 'skills'));
-    expect(resolveGlobalSkillDir('codex', 'demo')).toBe(join('/codex', 'skills', 'demo'));
-    expect(resolveGlobalSkillMarkdownPath('codex', 'demo')).toBe(join('/codex', 'skills', 'demo', 'SKILL.md'));
+    expect(resolveGlobalSkillDir('codex', 'demo')).toBe(resolve('/codex', 'skills', 'demo'));
+    expect(resolveGlobalSkillMarkdownPath('codex', 'demo')).toBe(join(resolve('/codex', 'skills', 'demo'), 'SKILL.md'));
   });
 
   it('returns null for cline and renders unsupported display path', () => {
@@ -481,8 +484,8 @@ describe('runtime-global skills directory helpers', () => {
   });
 
   it('renders home-relative display paths with ~ for warnings', () => {
-    expect(renderGlobalSkillsBaseDisplayPath('claude')).toBe('~/.claude/skills');
-    expect(renderGlobalSkillDisplayPath('claude', 'demo')).toBe(join('~/.claude/skills', 'demo'));
+    expect(toPosixPath(renderGlobalSkillsBaseDisplayPath('claude'))).toBe('~/.claude/skills');
+    expect(toPosixPath(renderGlobalSkillDisplayPath('claude', 'demo'))).toBe('~/.claude/skills/demo');
   });
 
   it('rejects path-traversal segments — resolveGlobalSkillDir returns null for ../../foo', () => {
@@ -493,7 +496,7 @@ describe('runtime-global skills directory helpers', () => {
     // Absolute path as skillName is also rejected
     expect(resolveGlobalSkillDir('codex', '/abs/path')).toBeNull();
     // Legitimate name still works
-    expect(resolveGlobalSkillDir('codex', 'demo')).toBe(join('/codex', 'skills', 'demo'));
+    expect(resolveGlobalSkillDir('codex', 'demo')).toBe(resolve('/codex', 'skills', 'demo'));
     // resolveGlobalSkillMarkdownPath must also propagate the null for unsafe inputs
     expect(resolveGlobalSkillMarkdownPath('codex', '../../foo')).toBeNull();
     expect(resolveGlobalSkillMarkdownPath('codex', '../escape')).toBeNull();
