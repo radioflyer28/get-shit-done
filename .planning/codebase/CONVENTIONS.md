@@ -1,200 +1,175 @@
 # Code Conventions
 
-**Analysis Date:** 2026-04-14
+**Analysis Date:** 2026-05-13
+**Mapped Commit:** `c582682e`
 
-## Language & Style
+## Language Conventions
 
-**Primary Language:** JavaScript — CommonJS (`.cjs`) modules only. `require()` everywhere; no ESM `import`.
+CommonJS is the default for root runtime code:
+- Use `'use strict';` at the top of `.cjs` files.
+- Use `require()` and `module.exports`.
+- Prefer Node built-ins in `get-shit-done/bin/lib/*.cjs`.
+- Keep CLI helpers cross-platform unless a script is explicitly shell-only.
 
-**Style Rules (from CONTRIBUTING.md):**
-- No external dependencies in core — `get-shit-done/bin/lib/*.cjs` and `get-shit-done/bin/gsd-tools.cjs` use only Node.js built-ins
-- No linting config detected (no `.eslintrc`, no `biome.json`) — style is enforced via code review
-- `'use strict';` at the top of `.cjs` files
-- Section dividers use the pattern `// ─── Section Name ────────` (em-dash box style)
-- JSDoc comments on exported functions with `@param` and `@returns` tags
+TypeScript is isolated to the SDK:
+- SDK code lives under `sdk/src/`.
+- Use ESM-style `import`/`export` in SDK files.
+- Build output goes to `sdk/dist/`.
+- Shared model data lives in `sdk/shared/model-catalog.json`, not duplicated constants.
 
-**Formatting:**
-- 2-space indentation
-- Single quotes for strings in JS
-- Trailing commas in multi-line arrays/objects
+Markdown is the product surface:
+- Agents live in `agents/*.md`.
+- Commands live in `commands/gsd/*.md`.
+- Workflows live in `get-shit-done/workflows/*.md`.
+- References live in `get-shit-done/references/**/*.md`.
+- Templates live in `get-shit-done/templates/*.md`.
 
-## Naming Conventions
+## File Naming
 
-**Files:**
-- Test files: `kebab-case.test.cjs` (e.g., `agent-frontmatter.test.cjs`)
-- Bug regression tests: `bug-{issueNumber}-{description}.test.cjs` (e.g., `bug-2075-worktree-deletion-safeguards.test.cjs`)
-- Library modules: `kebab-case.cjs` (e.g., `security.cjs`, `core.cjs`, `model-profiles.cjs`)
-- Agent files: `gsd-{name}.md` (e.g., `gsd-executor.md`)
-- Command files: `kebab-case.md` (e.g., `execute-phase.md`, `analyze-dependencies.md`)
-- Workflow files: `kebab-case.md` (e.g., `execute-phase.md`)
+Common patterns:
+- Runtime libraries: `kebab-case.cjs` such as `runtime-homes.cjs`, `install-profiles.cjs`.
+- Tests: `kebab-case.test.cjs` or `bug-{issue}-{description}.test.cjs`.
+- SDK tests: colocated `*.test.ts` under `sdk/src/`.
+- Agents: `gsd-{role}.md`.
+- Commands/workflows: `kebab-case.md`.
+- Security scripts: descriptive names such as `security_prescan.py`, `scan_baseline.py`, `scan_ci.sh`.
 
-**JavaScript Functions:**
-- `camelCase` for all functions and variables (e.g., `validatePath`, `createTempProject`, `toPosixPath`)
-- `SCREAMING_SNAKE_CASE` for module-level constants (e.g., `TOOLS_PATH`, `AGENTS_DIR`, `REPO_ROOT`)
-- `PascalCase` for constructors/classes (none detected in lib; not a primary pattern)
+## JavaScript Style
 
-**Agent Names:** `gsd-{role}` — always prefixed with `gsd-` (e.g., `gsd-executor`, `gsd-planner`, `gsd-verifier`)
+Observed conventions:
+- 2-space indentation.
+- Single quotes for JS strings.
+- `const` by default, `let` only when reassignment is needed.
+- Functions use `camelCase`.
+- Constants use `SCREAMING_SNAKE_CASE` for broad module-level values.
+- Keep command execution argument-based where possible; avoid shell string interpolation for user input.
+- Return structured objects from library helpers rather than throwing for normal validation outcomes.
 
-**Command Names:** `gsd:{command}` in frontmatter `name:` field (e.g., `gsd:execute-phase`)
+Security-sensitive convention:
+- Prefer `execFileSync(process.execPath, [script, ...args])` or argument-array process APIs.
+- Validate project/user paths through helpers such as `validatePath()` in `get-shit-done/bin/lib/security.cjs`.
+- Reject traversal, null bytes, and shell metacharacters where workflows accept path input.
 
-## Agent Authoring Conventions
+## Markdown Workflow Style
 
-Agent files live in `agents/` and follow this structure:
+Workflow files use XML-like sections:
+- `<purpose>`
+- `<available_agent_types>`
+- `<required_reading>`
+- `<process>`
+- `<step name="...">`
+- `<success_criteria>`
 
-```markdown
----
-name: gsd-{role}
-description: {One-line description of purpose and spawn context}
-tools: Read, Write, Edit, Bash, Grep, Glob, mcp__context7__*
-color: {yellow|blue|green|purple|red}
-# hooks:
-#   PostToolUse:
-#     - matcher: "Write|Edit"
-#       hooks:
-#         - type: command
-#           command: "..."
----
+Step names are usually `snake_case`. Workflows should load context through `gsd-sdk query ...` rather than manually parsing `.planning/` files when a query handler exists.
 
-<role>
-You are a GSD {role}. {Description of what it does and who spawns it.}
-</role>
+When workflows are runtime-sensitive, include runtime compatibility/adaptation guidance. Codex installed skills include a `codex_skill_adapter`. Pi installed skills include optional `pi-subagents` adapter guidance.
+
+## Agent Authoring
+
+Agent source files use YAML frontmatter followed by XML-like body sections.
+
+Common fields:
+- `name: gsd-{role}`
+- `description: ...`
+- `tools: ...` or YAML list depending on source/runtime format
+- `color:` for Claude-origin source agents
+
+Important constraints:
+- Do not add `skills:` frontmatter to agents; tests guard against this for runtime compatibility.
+- File-writing agents should avoid heredoc patterns and use proper file-edit tools.
+- Agent output should end with structured completion markers defined in `get-shit-done/references/agent-contracts.md`.
+- New agents must be added to `sdk/shared/model-catalog.json`, or SDK profile tests will fail.
+
+Pi agent conversion removes Claude-only fields and emits Pi-compatible frontmatter through `convertClaudeAgentToPiSubagentAgent`.
+
+Codex agent conversion generates TOML config with sandbox and model fields.
+
+## Model Routing Conventions
+
+Use semantic tiers in source docs and config:
+- `opus`
+- `sonnet`
+- `haiku`
+
+Resolve concrete runtime model IDs through:
+- `sdk/shared/model-catalog.json`
+- `get-shit-done/bin/lib/model-catalog.cjs`
+- `sdk/src/model-catalog.ts`
+- `model_profile_overrides.<runtime>.<tier>`
+
+Do not hardcode GPT/Codex or Pi model IDs in agent docs unless documenting defaults. Runtime-specific generated files should receive concrete model IDs from the catalog.
+
+## Security Workflow Conventions
+
+Security workflows follow a two-phase pattern:
+- deterministic tools produce structured findings first
+- scanner agents triage and reason over findings second
+
+Important files:
+- `get-shit-done/workflows/security-audit.md`
+- `get-shit-done/workflows/threat-scan.md`
+- `agents/gsd-security-scanner.md`
+- `agents/gsd-threat-scanner.md`
+- `get-shit-done/bin/security_prescan.py`
+- `get-shit-done/semgrep/threat-patterns.yml`
+
+Threat scan and security audit docs should distinguish:
+- own-code vulnerability scanning
+- untrusted-code deliberate threat scanning
+- declared threat mitigation verification through `gsd-secure-phase`
+
+## Test Style
+
+CJS tests use Node's built-in runner:
+
+```javascript
+'use strict';
+
+const { test, describe, beforeEach, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
 ```
 
-**Frontmatter rules:**
-- `name:` — required, `gsd-{role}` format
-- `description:` — required, one-line
-- `tools:` — required; use comma-separated list
-- `color:` — optional
-- `skills:` — **MUST NOT be present** — breaks Gemini CLI
-- `hooks:` — always commented out (never active in frontmatter)
+Common helper import:
 
-**Body conventions:**
-- File-writing agents MUST include the anti-heredoc instruction: `"never use \`Bash(cat << 'EOF')\` or heredoc"` 
-- Use XML-like tags for structure: `<role>`, `<process>`, `<step>`, `<documentation_lookup>`, `<required_reading>`
-- `<required_reading>` blocks list files the agent must load before acting
-- Steps use `<step name="..." priority="...">` attributes
-
-## Command Authoring Conventions
-
-Command files live in `commands/gsd/` and follow this structure:
-
-```markdown
----
-name: gsd:{command-name}
-description: {One-line description}
-argument-hint: "<required-arg> [optional-arg] [--flag]"
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - Bash
-  - Task
-  - TodoWrite
-  - AskUserQuestion
----
-<objective>
-{What this command does.}
-</objective>
-
-<execution_context>
-@~/.claude/get-shit-done/workflows/{workflow-name}.md
-</execution_context>
-
-<runtime_note>
-{Runtime-specific overrides, e.g. Copilot vs Claude Code differences.}
-</runtime_note>
-
-<context>
-Phase: $ARGUMENTS
-
-**Available optional flags (documentation only — not automatically active):**
-- --flag — description
-</context>
-
-<process>
-...
-</process>
+```javascript
+const { createTempProject, cleanup, runGsdTools } = require('./helpers.cjs');
 ```
 
-**Key rules:**
-- `$ARGUMENTS` is the variable for user-supplied arguments
-- Flags documented under `<context>` are only active when literally present in `$ARGUMENTS`
-- Always note Copilot vs Claude Code runtime differences in `<runtime_note>`
-- Reference workflows via `@~/.claude/get-shit-done/workflows/{name}.md`
+Cleanup conventions:
+- Use `beforeEach`/`afterEach` for shared temp dirs.
+- Use `t.after()` for per-test temp dirs.
+- Avoid `try/finally` in test bodies.
 
-## Workflow Authoring Conventions
-
-Workflow files live in `get-shit-done/workflows/` and use XML-tag structure:
-
-```markdown
-<purpose>
-{One-paragraph summary of what this workflow does.}
-</purpose>
-
-<core_principle>
-{The single guiding constraint.}
-</core_principle>
-
-<runtime_compatibility>
-{Notes for different AI runtimes — Claude Code, Copilot, Gemini, Codex.}
-</runtime_compatibility>
-
-<required_reading>
-Read STATE.md before any operation to load project context.
-
-@~/.claude/get-shit-done/references/{reference-file}.md
-</required_reading>
-
-<process>
-
-<step name="step_name" priority="first|...">
-{Step instructions.}
-</step>
-
-</process>
-```
-
-**Conventions:**
-- Always include `<runtime_compatibility>` when subagent spawning is involved
-- `<required_reading>` lists `@~/.claude/get-shit-done/references/` files to preload
-- Step names use `snake_case`
-- `priority="first"` marks steps that must execute before any other
+Large content fixtures often use array `join('\n')` to avoid indentation bleed.
 
 ## Commit Conventions
 
-Conventional commits format: `type: description`
+Conventional commit types are used:
+- `feat:`
+- `fix:`
+- `docs:`
+- `test:`
+- `refactor:`
+- `ci:`
+- `chore:`
 
-| Type | When to use |
-|------|-------------|
-| `feat:` | New feature or command |
-| `fix:` | Bug fix |
-| `docs:` | Documentation only |
-| `refactor:` | Code change that isn't a bug fix or feature |
-| `test:` | Adding or updating tests |
-| `ci:` | CI/CD config changes |
+GSD workflows often commit generated artifacts through:
 
-**PR Linking:** PR body must include `Closes #NNN`, `Fixes #NNN`, or `Resolves #NNN`.
-
-## Error Handling Patterns
-
-**Structured returns from lib functions:**
-```javascript
-// Success
-return { safe: true, resolved: '/abs/path/to/file' };
-
-// Failure
-return { safe: false, resolved: '', error: 'Descriptive error message' };
+```bash
+gsd-sdk query commit "docs: map existing codebase" --files .planning/codebase/*.md
 ```
 
-**CLI tool invocations:**
-- `runGsdTools()` returns `{ success: true, output: '...' }` or `{ success: false, output: '', error: '...' }`
-- Callers check `result.success` before using `result.output`
+## Branch Organization Convention
 
-**Security rules:**
-- Use `validatePath()` from `get-shit-done/bin/lib/security.cjs` for all user-provided paths
-- Use `execFileSync(process.execPath, [script, ...argv])` — never `execSync` with string interpolation (prevents shell injection)
-- Reject null bytes, path traversal (`../`), and absolute paths in user input unless explicitly allowed
+For this fork:
+- `feat/pi-runtime` contains Pi runtime support.
+- `feat/security-skills` contains security and skill-authoring work.
+- `my-mods` aggregates both feature branches.
+- `upstream` points at `gsd-build/get-shit-done`.
+- `origin` points at the user fork.
 
-**No `try/finally` in test bodies** — use `beforeEach`/`afterEach` or `t.after()` instead.
+Keep topic branches separately mergeable with upstream. Put cross-branch integration fixes into the topic branch that owns the affected behavior when possible.
+
+---
+
+*Conventions analysis refreshed: 2026-05-13*

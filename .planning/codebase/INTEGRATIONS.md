@@ -1,80 +1,145 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-14
+**Analysis Date:** 2026-05-13
+**Mapped Commit:** `c582682e`
 
-## Platform Integrations
+## AI Runtime Integrations
 
-GSD installs configuration and agent files into AI coding assistant runtimes. The installer (`bin/install.js`) supports the following platforms via CLI flags:
+GSD integrates with AI coding tools by installing runtime-specific skills, commands, agents, hooks, and configuration files. The installer entry point is `bin/install.js`.
 
-| Flag | Platform |
-|------|----------|
-| `--claude` | Claude Code (Anthropic) |
-| `--opencode` | OpenCode |
-| `--gemini` | Gemini CLI (Google) |
-| `--kilo` | Kilo Code |
-| `--codex` | Codex CLI (OpenAI) |
-| `--copilot` | GitHub Copilot |
-| `--cursor` | Cursor |
-| `--windsurf` | Windsurf |
-| `--antigravity` | Antigravity |
-| `--augment` | Augment Code |
-| `--trae` | Trae |
-| `--qwen` | Qwen Code |
-| `--codebuddy` | CodeBuddy |
-| `--cline` | Cline |
+Supported runtime flags include:
+- `--claude`
+- `--opencode`
+- `--gemini`
+- `--kilo`
+- `--codex`
+- `--copilot`
+- `--antigravity`
+- `--cursor`
+- `--windsurf`
+- `--augment`
+- `--trae`
+- `--qwen`
+- `--hermes`
+- `--pi`
+- `--cline`
+- `--codebuddy`
+- `--all`
 
-**Tool name mapping:** Claude Code tool names (e.g. `Read`, `Write`, `Bash`) are remapped to GitHub Copilot equivalents (`read`, `edit`, `execute`) during installation. Applies to agents only, not skills.
+Runtime install roots are resolved through `get-shit-done/bin/lib/runtime-homes.cjs` and parallel logic in `bin/install.js`. Examples:
+- Codex global: `~/.codex`
+- Pi global: `~/.pi/agent`
+- Pi local: `.pi`
+- Claude global: `~/.claude`
+- Gemini global: `~/.gemini`
 
-**Codex agent sandbox config:** The installer writes `config.toml` entries assigning `workspace-write` or `read-only` sandbox levels to named GSD agents.
+## Pi Integration
 
-**Copilot instructions:** The installer manages a `<!-- GSD Configuration -->` block inside `.github/copilot-instructions.md`.
+Pi is installed with `npx get-shit-done-cc --pi --global` or from source with `node bin/install.js --pi --global`.
 
-## APIs & External Services
+Pi-specific behavior:
+- Skills are converted to Pi skill shape under `skills/gsd-*/SKILL.md`.
+- Engine files are installed under `get-shit-done/`.
+- Agents are converted by `convertClaudeAgentToPiSubagentAgent` in `bin/install.js`.
+- Agent frontmatter strips Claude-only fields such as `color`, `hooks`, and Claude-specific tool allowlists.
+- Pi agents receive `systemPromptMode: append`, `inheritProjectContext: true`, `inheritSkills: false`, `defaultContext: fresh`, and `maxSubagentDepth: 0`.
+- The Pi skill adapter injected by `injectPiSubagentsSkillAdapter` documents optional `pi-subagents` behavior.
+- If the Pi `subagent` tool is unavailable, workflows should use sequential fallback behavior rather than fail.
 
-No outbound HTTP API calls in the core library at runtime. GSD is a prompt/config installer — it writes files to disk and delegates execution to the installed AI runtime.
+Optional Pi package:
+- `pi-subagents` from `https://pi.dev/packages/pi-subagents`
+- Install with `pi install npm:pi-subagents` from a terminal where `pi` is available.
+
+## Codex Integration
+
+Codex install writes:
+- `~/.codex/skills/gsd-*/SKILL.md`
+- `~/.codex/get-shit-done/`
+- `~/.codex/agents/gsd-*.md`
+- `~/.codex/config.toml`
+- per-agent TOML config files
+- Codex hooks such as SessionStart configuration
+
+Codex model routing is generated from `sdk/shared/model-catalog.json`. Generated agent TOML can embed:
+- `model = "gpt-5.5"` or related tier defaults
+- `model_reasoning_effort = "high" | "medium" | "low"`
+- sandbox settings from Codex-specific agent policy tests in `tests/codex-config.test.cjs`
+
+## Model Provider Integrations
+
+The shared model catalog provides deterministic runtime tier defaults:
+- Claude aliases for Claude-like runtimes
+- provider-qualified OpenCode and Hermes defaults
+- Gemini model defaults
+- Qwen model defaults
+- Codex GPT/Codex defaults
+- Pi OpenAI Codex provider defaults
+
+Model routing can be overridden by project config:
+- `model_overrides.<agent>`
+- `model_profile_overrides.<runtime>.<tier>`
+- `models.<phaseType>` tier selection
+- `model_profile` values such as `quality`, `balanced`, `budget`, `adaptive`, and `inherit`
 
 ## Package Registries
 
-**Publishes to:**
-- npm public registry: `https://registry.npmjs.org`
-- Package: `get-shit-done-cc` (public, with provenance)
-- Installation: `npx get-shit-done-cc@latest`
+Publishing and install integration:
+- npm package: `get-shit-done-cc`
+- SDK package metadata: `@gsd-build/sdk`
+- Global execution path: `npx get-shit-done-cc@latest`
+- Local-source install path: `node bin/install.js ...`
 
-**Consumes from:**
-- npm (standard `npm ci` for dev dependencies)
+The installer also verifies that `gsd-sdk` resolves to a compatible version. If PATH resolves a stale global shim, workflows that call `gsd-sdk query ...` may fail or use old behavior.
 
-**Auth:** `NODE_AUTH_TOKEN` secret used in release/hotfix workflows for `npm publish`
+## External Security Services
 
-## CI/CD
+Security tooling can call external vulnerability and package intelligence services when the relevant tool is run:
+- OSV API from `get-shit-done/bin/supply_chain_intel.py`
+- deps.dev API from `get-shit-done/bin/supply_chain_intel.py`
+- GitHub Advisory GraphQL references in `get-shit-done/bin/supply_chain_intel.py`
 
-**Platform:** GitHub Actions
+These are not used by normal install or basic workflow execution. They are used by security scan workflows when invoked.
 
-**Repository:** `gsd-build/get-shit-done`
+## Optional External CLI Tools
 
-**Workflows:**
+Security workflows integrate with optional local CLIs when available:
+- Semgrep for `get-shit-done/semgrep/threat-patterns.yml`
+- Gitleaks for secret scanning
+- Trivy and other dependency/IaC scanners through the prescan registry
+- Syft or CycloneDX CLI for SBOM generation
+- Python 3 for scanner helpers
+- Bash for shell shims
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `test.yml` | push to `main`/`release/**`/`hotfix/**`, PR to `main` | Run tests on Node 22+24 (ubuntu), Node 24 (macOS) |
-| `release.yml` | `workflow_dispatch` | Manage minor/major release lifecycle (create → RC → finalize → `npm publish`) |
-| `hotfix.yml` | `workflow_dispatch` | Patch release pipeline with `npm publish` |
-| `security-scan.yml` | PR to `main`/`release/**`/`hotfix/**` | Prompt injection, base64 obfuscation, secret, and `.planning/` leakage scans |
-| `pr-gate.yml` | PR | General PR quality gate |
-| `require-issue-link.yml` | PR | Enforces issue link in PRs |
-| `branch-naming.yml` | PR | Enforces branch naming conventions |
-| `branch-cleanup.yml` | Scheduled/merge | Deletes stale branches |
-| `stale.yml` | Scheduled | Marks/closes stale issues and PRs |
-| `auto-label-issues.yml` | Issue opened | Auto-labels new issues |
-| `auto-branch.yml` | Issue labeled | Creates branch from issue |
-| `close-draft-prs.yml` | Scheduled | Closes lingering draft PRs |
+The workflows are designed to degrade gracefully when optional tools are missing by passing available structured findings to scanner agents.
 
-**Pinned action versions:** All `actions/checkout` and `actions/setup-node` calls use pinned SHA hashes (supply-chain security practice).
+## GitHub Integrations
 
-## Webhooks & Callbacks
+GitHub Actions workflows are under `.github/workflows/`:
+- `test.yml`
+- `install-smoke.yml`
+- `security-scan.yml`
+- `release.yml`
+- `release-sdk.yml`
+- `hotfix.yml`
+- `canary.yml`
+- `pr-gate.yml`
+- `changeset-required.yml`
+- `require-issue-link.yml`
+- `branch-naming.yml`
+- `branch-cleanup.yml`
+- `auto-branch.yml`
+- `auto-label-issues.yml`
+- `stale.yml`
+- `close-draft-prs.yml`
+- `dismiss-unauthorized-pr-approvals.yml`
+- `pr-template-format.yml`
 
-**Incoming:** None
-**Outgoing:** None
+CI validates Node 22/24 compatibility, installer behavior, security scans, and release mechanics.
+
+## Webhooks
+
+The product itself does not expose incoming webhooks. It installs local files, reads project state, and delegates execution to the active AI runtime. Outbound network activity is limited to update checks, package manager operations, and explicit security intelligence workflows.
 
 ---
 
-*Integration audit: 2026-04-14*
+*Integration audit refreshed: 2026-05-13*

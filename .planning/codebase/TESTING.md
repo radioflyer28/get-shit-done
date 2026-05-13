@@ -1,187 +1,196 @@
 # Testing
 
-**Analysis Date:** 2026-04-14
+**Analysis Date:** 2026-05-13
+**Mapped Commit:** `c582682e`
 
-## Test Framework
+## Test Frameworks
 
-**Runner:** Node.js built-in `node:test` — **do not use Jest, Mocha, Chai, or any external test framework.**
+Root test suite:
+- Runner: Node.js built-in test runner through `node --test`.
+- Orchestrator: `scripts/run-tests.cjs`.
+- Test files: `tests/*.test.cjs`.
+- Current count: 501 CJS test files.
+- Assertions: `node:assert/strict`.
 
-**Assertion Library:** `node:assert/strict`
+SDK test suite:
+- Runner: Vitest.
+- Source: `sdk/src/**/*.test.ts`.
+- Config: `sdk/vitest.config.ts` and root `vitest.config.ts`.
+- Build: `npm --prefix sdk run build` uses `tsc`.
 
-**Coverage:** `c8` (devDependency) — 70% line coverage minimum enforced on `get-shit-done/bin/lib/*.cjs`
+Coverage:
+- `npm run test:coverage`
+- Uses `c8 --check-coverage --lines 70`.
+- Coverage includes `get-shit-done/bin/lib/*.cjs`, not the entire installer.
 
-**Required imports:**
-```javascript
-const { describe, it, test, beforeEach, afterEach, before, after } = require('node:test');
-const assert = require('node:assert/strict');
-```
+## Primary Commands
 
-**Run Commands:**
+Root:
+
 ```bash
-npm test                 # Run all tests (concurrency=4)
-npm run test:coverage    # Run with c8 coverage (70% lines required)
-TEST_CONCURRENCY=1 npm test  # Run serially (for debugging)
+npm test
+npm run test:coverage
+TEST_CONCURRENCY=1 npm test
+node --test tests/pi-install.test.cjs
 ```
 
-The custom runner at `scripts/run-tests.cjs` globs all `tests/*.test.cjs` files and invokes `node --test` with `--test-concurrency=4` by default.
+SDK:
 
-## Test Structure
-
-**Location:** All test files live flat in `tests/` — no subdirectories.
-
-**Naming Pattern:**
-- Feature tests: `{feature-name}.test.cjs` (e.g., `agent-frontmatter.test.cjs`, `analyze-dependencies.test.cjs`)
-- Bug regression tests: `bug-{issueNumber}-{description}.test.cjs` (e.g., `bug-2075-worktree-deletion-safeguards.test.cjs`)
-- Shared utilities: `tests/helpers.cjs` (not a test file; no `.test.` in name)
-
-**Test file count:** 100+ `.test.cjs` files in `tests/`.
-
-**Canonical test structure:**
-```javascript
-'use strict';
-
-const { test, describe, beforeEach, afterEach } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
-const { createTempProject, cleanup, runGsdTools } = require('./helpers.cjs');
-
-const REPO_ROOT   = path.join(__dirname, '..');
-const AGENTS_DIR  = path.join(REPO_ROOT, 'agents');
-
-describe('feature-name', () => {
-  let tmpDir;
-
-  beforeEach(() => {
-    tmpDir = createTempProject();
-  });
-
-  afterEach(() => {
-    cleanup(tmpDir);
-  });
-
-  test('does the thing', () => {
-    // Arrange
-    // Act
-    // Assert
-    assert.strictEqual(actual, expected);
-  });
-
-  test('handles edge case', () => {
-    // ...
-  });
-});
+```bash
+npm --prefix sdk run build
+npm --prefix sdk test
+npm --prefix sdk test -- src/query/config-query.test.ts
 ```
 
-**Section dividers** in larger test files use: `// ─── Section Name ─────────────────────`
+Focused branch validation:
 
-**Fixture strings** use array `join()`, not template literals (prevents indentation bleed):
-```javascript
-// GOOD
-const content = [
-  'line one',
-  'line two',
-].join('\n');
-
-// BAD — indentation bleeds into string
-const content = `
-  line one
-  line two
-`;
+```bash
+node --test tests/pi-install.test.cjs tests/runtime-converters.test.cjs tests/model-catalog-runtime-defaults.test.cjs
+npm --prefix sdk test -- src/query/config-query.test.ts src/query/helpers.test.ts
 ```
 
-## Cleanup Patterns
+## Test Organization
 
-Two approved patterns — no others:
+`tests/` is a flat directory. Important groups:
+- Runtime install tests: `pi-install.test.cjs`, `copilot-install.test.cjs`, `codex-config.test.cjs`, `multi-runtime-select.test.cjs`, `install-minimal-all-runtimes.test.cjs`.
+- Runtime conversion tests: `runtime-converters.test.cjs`.
+- Model routing tests: `issue-2517-runtime-aware-profiles.test.cjs`, `model-catalog-runtime-defaults.test.cjs`.
+- Core library tests: `core.test.cjs`, `state.test.cjs`, `phase.test.cjs`, `commands.test.cjs`, `verify.test.cjs`, `config.test.cjs`.
+- Security tests: `phase-06-prescan.test.cjs`, `phase10-scanner-operations.test.cjs`, `security-patterns-phase7.test.cjs`, `threat-patterns-validation.test.cjs`, `security.test.cjs`.
+- SDK query tests: `sdk/src/query/*.test.ts`.
 
-**Pattern 1 — Shared fixtures** (most common):
-```javascript
-describe('feature', () => {
-  let tmpDir;
-  beforeEach(() => { tmpDir = createTempProject(); });
-  afterEach(() => { cleanup(tmpDir); });
+Large tests by file size include:
+- `tests/phase.test.cjs`
+- `tests/state.test.cjs`
+- `tests/codex-config.test.cjs`
+- `tests/core.test.cjs`
+- `tests/init.test.cjs`
+- `tests/commands.test.cjs`
+- `tests/copilot-install.test.cjs`
+- `tests/issue-2517-runtime-aware-profiles.test.cjs`
 
-  test('...', () => { /* ... */ });
-});
-```
+## Helpers
 
-**Pattern 2 — Per-test cleanup** (when each test needs unique teardown):
-```javascript
-test('custom setup', (t) => {
-  const tmpDir = createTempProject('my-prefix');
-  t.after(() => cleanup(tmpDir));
-  assert.strictEqual(actual, expected);
-});
-```
+Common CJS helpers live in `tests/helpers.cjs`.
 
-**Forbidden:** `try/finally` inside test bodies. Only allowed inside standalone utility functions that have no test context access.
+Typical helpers:
+- `createTempProject`
+- `createTempGitProject`
+- `createTempDir`
+- `cleanup`
+- `runGsdTools`
 
-## Test Helpers (`tests/helpers.cjs`)
+Use temp projects for tests that write `.planning/` state. Pass `{ HOME: tmpDir }` in env when tests must isolate global defaults.
 
-Import from `tests/helpers.cjs`:
-```javascript
-const { createTempProject, createTempGitProject, createTempDir, cleanup, runGsdTools } = require('./helpers.cjs');
-```
+## Pi Runtime Coverage
 
-| Helper | Creates | Use When |
-|--------|---------|----------|
-| `createTempProject(prefix?)` | tmpDir + `.planning/phases/` | Testing GSD tools needing planning structure |
-| `createTempGitProject(prefix?)` | Same + `git init` + initial commit | Testing git-dependent features |
-| `createTempDir(prefix?)` | Bare temp directory | Features not needing `.planning/` |
-| `cleanup(tmpDir)` | Removes directory recursively | Always call in `afterEach` |
-| `runGsdTools(args, cwd, env?)` | Executes `get-shit-done/bin/gsd-tools.cjs` | Testing CLI commands |
+Pi-specific coverage exists in:
+- `tests/pi-install.test.cjs`
+- `tests/runtime-converters.test.cjs`
+- `tests/model-catalog-runtime-defaults.test.cjs`
+- `tests/issue-2517-runtime-aware-profiles.test.cjs`
+- `sdk/src/query/config-query.test.ts`
 
-`runGsdTools` accepts a string or array for `args`. Returns `{ success: boolean, output: string, error?: string }`.
+Covered behavior:
+- `--pi --global` and `--pi --local` directory mapping.
+- `PI_AGENT_HOME` and `PI_CONFIG_DIR` handling.
+- Pi skill frontmatter shape.
+- Claude path/reference replacement for Pi.
+- Optional `pi-subagents` adapter injection.
+- Pi agent frontmatter with no Claude-only fields.
+- Pi model/thinking defaults from `openai-codex/...`.
+- Runtime tier override merging.
 
-Pass `{ HOME: tmpDir }` as `env` to sandbox `~/.gsd/` lookups in tests asserting concrete config values.
+## Codex Model Coverage
 
-## Test Categories
+Codex model behavior is covered by:
+- `tests/issue-2517-runtime-aware-profiles.test.cjs`
+- `tests/model-catalog-runtime-defaults.test.cjs`
+- `tests/codex-config.test.cjs`
+- `sdk/src/query/config-query.test.ts`
 
-**CLI command tests:** Verify `gsd-tools.cjs` subcommands (`config-ensure-section`, `config-get`, `config-set`, etc.) via `runGsdTools`. Located in files like `analyze-dependencies.test.cjs`, `ai-evals.test.cjs`.
+Covered behavior:
+- `gpt-5.5` high reasoning for `opus`.
+- `gpt-5.3-codex` medium reasoning for `sonnet`.
+- `gpt-5.4-mini` low reasoning for `haiku`.
+- `model_profile_overrides.codex.<tier>` handling.
+- object override merging for `reasoning_effort`.
+- generated Codex TOML model fields.
 
-**Agent frontmatter tests** (`agent-frontmatter.test.cjs`): Validate that all agent `.md` files have correct frontmatter — no `skills:` field, anti-heredoc instruction present in file-writing agents, hooks commented out.
+## Security Coverage
 
-**Workflow/command content tests** (`anti-pattern-enforcement.test.cjs`, etc.): Read workflow `.md` files directly and assert on string content — verify required sections, keywords, and structural patterns are present.
+Security-skills coverage includes:
+- `tests/phase-06-prescan.test.cjs`
+- `tests/security-patterns-phase7.test.cjs`
+- `tests/threat-patterns-validation.test.cjs`
+- `tests/phase10-scanner-operations.test.cjs`
+- `tests/git-forensics.test.cjs`
+- `tests/secure-phase.test.cjs`
+- `tests/security.test.cjs`
 
-**Bug regression tests** (`bug-{N}-*.test.cjs`): Each reproduces a specific reported issue. Named after the GitHub issue number. Required for every bug fix PR — the test must fail before the fix and pass after.
+Covered behavior:
+- Prescan shim and Python orchestrator existence/shape.
+- Tool registry coverage.
+- Scanner workflow integration.
+- CI helper behavior and JSON output.
+- Baseline suppression and scan state logic.
+- Supply-chain intelligence dry-run behavior.
+- SBOM script behavior.
+- Threat Semgrep rule structure and fixtures.
+- Skill audit/tune/scaffold integration.
 
-**AI evals tests** (`ai-evals.test.cjs`): Validate AI-integration-specific behavior — config defaults, health check warnings, template section completeness.
+Some Semgrep execution tests are skipped when the Semgrep CLI is not installed.
 
-**Concurrency/safety tests** (`concurrency-safety.test.cjs`): Test lock file behavior and concurrent access safety.
+## Structural Test Pattern
 
-**Install tests** (`antigravity-install.test.cjs`, `bug-1736-local-install-commands.test.cjs`): Validate installer behavior across runtimes.
+Many tests assert on source text or generated install output:
+- required workflow sections
+- frontmatter fields
+- absence of forbidden fields such as agent `skills:`
+- no hardcoded `~/.claude/` leaks in generated runtime skills
+- adapter text presence
+- command alias drift
+- install manifest contents
 
-## Coverage Areas
+This is appropriate for prompt/workflow code, but it means behavior inside real AI runtimes is mostly validated indirectly.
 
-**Well tested:**
-- `get-shit-done/bin/lib/*.cjs` — core library modules (70% line coverage enforced by CI)
-- CLI command output and return values via `runGsdTools`
-- Agent and command frontmatter structural requirements
-- Workflow file content (required sections, keywords, anti-patterns)
-- Config read/write/validate operations
-- Bug regression coverage (100+ filed bugs have corresponding tests)
+## Known Gaps
 
-**Gaps:**
-- Workflow behavior end-to-end (workflows are tested structurally/textually, not by executing them in an AI runtime)
-- `bin/install.js` — installer logic partially tested (some install tests exist but coverage is not enforced)
-- Edge cases in `agents/` and `commands/gsd/` content beyond frontmatter checks
+Coverage gaps:
+- `bin/install.js` has many focused tests but is not part of the `c8` coverage gate.
+- Real end-to-end execution inside Pi, Codex, Claude, or other runtimes is not fully automated.
+- Optional external scanner CLIs are not always present in CI, so some scanner behavior is structurally validated or skipped.
+- Markdown workflow behavior is tested mostly through string/structure assertions, not by executing every workflow.
 
-## Node Version Compatibility
+Risky areas requiring focused tests:
+- Adding runtime support in `bin/install.js`.
+- Changing model catalog schema.
+- Adding or renaming agents.
+- Changing `gsd-sdk query` output contracts.
+- Editing security scan JSON formats.
+- Modifying install profiles or minimal/core behavior.
 
-| Version | Status |
-|---------|--------|
-| **Node 22** | Minimum required (Active LTS until Oct 2026) |
-| **Node 24** | Primary CI target |
+## Test Expectations For Changes
 
-**CI matrix:** Ubuntu × Node 22, 24; macOS × Node 24. All jobs must be green before merge.
+New runtime:
+- Add installer tests for global/local/minimal/full paths.
+- Add runtime converter tests.
+- Add runtime home tests.
+- Add model catalog tests if model defaults exist.
+- Add docs table parity tests if runtime defaults are documented.
 
-Do not use APIs unavailable in Node 22. Safe to use: `node:test`, `describe`/`it`/`test`, `beforeEach`/`afterEach`, `t.after()`, `t.plan()`, snapshot testing.
+New agent:
+- Add the file in `agents/`.
+- Add model metadata in `sdk/shared/model-catalog.json`.
+- Ensure `sdk/src/query/config-query.test.ts` model profile parity passes.
+- Add workflow/agent structural tests if it has a special contract.
 
-## Test Requirements by Contribution Type
+New security scanner capability:
+- Add script existence and help tests.
+- Add dry-run tests if network/external tools are optional.
+- Add fixture-based tests for parsing and JSON shape.
+- Avoid requiring external scanners unless the test gracefully skips.
 
-| Type | Requirement |
-|------|-------------|
-| **Bug Fix** | Regression test required — must fail before fix, pass after |
-| **Enhancement** | Tests for enhanced behavior + update affected existing tests |
-| **Feature** | Tests for primary success path + at least one failure scenario |
-| **Behavior Change** | Update or replace all tests covering changed behavior |
+---
+
+*Testing analysis refreshed: 2026-05-13*

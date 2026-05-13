@@ -1,145 +1,248 @@
 # Architecture
 
-**Analysis Date:** 2026-04-14
+**Analysis Date:** 2026-05-13
+**Mapped Commit:** `c582682e`
 
 ## System Overview
 
-GSD (Get Shit Done) is a meta-prompting, context engineering, and spec-driven development system. It installs workflow instructions into AI coding tools (Claude Code, GitHub Copilot, Gemini CLI, Codex, Cursor, Windsurf, and ~10 others) and provides a structured planning layer that manages an entire project lifecycle — from ideation through phased execution to milestone archiving.
+GSD is a multi-runtime workflow system for AI-assisted software delivery. It packages a set of skills, command prompts, agent definitions, runtime libraries, templates, and hooks that install into coding agents such as Claude Code, Codex, Pi, Gemini, OpenCode, and other tools.
 
-The core idea: workflows decompose work into phases, plans, and tasks, then orchestrate specialized AI subagents to execute each piece, quality-gate outputs, and accumulate state in a `.planning/` directory in the user's project.
+The product has two major responsibilities:
+- Install the correct runtime-specific surface into the user's AI tool home.
+- Provide workflow and query primitives that manage project planning, execution, review, verification, security checks, and documentation through `.planning/`.
+
+The current branch combines the Pi runtime work with the security-skills work. That means runtime conversion and model routing now sit beside a larger security analysis subsystem.
 
 ## Core Subsystems
 
-### 1. Installer (`bin/install.js`)
-Single entry point for `npx get-shit-done-cc@latest`. Handles runtime detection (Claude Code, Copilot, Gemini, Codex, etc.), interactive multi-select prompts, and copies the appropriate files to the correct config directory for each runtime. Supports global (`~/.claude/`, `~/.gemini/`, etc.) and local (`.claude/`, `.github/`, etc.) installs.
+### Installer
 
-### 2. Workflow Engine (`get-shit-done/workflows/`)
-~72 Markdown workflow files, one per `/gsd-*` command. Each file is an XML-structured prompt document consumed by the AI's context when the command is invoked. Workflows define: purpose, required reading, available subagent types, and a step-by-step process with conditional branching.
+`bin/install.js` is the main entry point for `get-shit-done-cc`.
 
-### 3. Agent Registry (`agents/`)
-~33 specialized agent definition `.md` files. Each agent has a focused role (planner, executor, verifier, researcher, debugger, etc.). Agents are spawned by orchestrator workflows via the `Task` tool. They signal completion using standardized text markers (e.g., `## PLANNING COMPLETE`, `## PLAN COMPLETE`).
+Responsibilities:
+- Parse runtime flags such as `--codex` and `--pi`.
+- Resolve global and local install directories.
+- Stage skill profiles through `get-shit-done/bin/lib/install-profiles.cjs`.
+- Convert Claude-origin agent/skill content into runtime-specific formats.
+- Install engine files under runtime homes.
+- Generate Codex agent TOML and hooks.
+- Generate Pi skill and pi-subagents-compatible agent files.
+- Write `gsd-file-manifest.json`, `gsd-install-state.json`, `VERSION`, and supporting package metadata.
+- Verify installed SDK readiness.
 
-### 4. Reference Library (`get-shit-done/references/`)
-~40+ shared reference documents loaded by workflows and agents as needed. Covers: agent contracts, gate taxonomy, context budget rules, verification patterns, TDD pipeline, model profiles, git integration, planner anti-patterns, and more. This is the system's shared knowledge base.
+This file is still a large central orchestrator: about 10,152 lines and roughly 470 KB.
 
-### 5. Runtime Libraries (`get-shit-done/bin/lib/`)
-CommonJS utility modules (`.cjs`) providing shared logic: `state.cjs`, `roadmap.cjs`, `phase.cjs`, `milestone.cjs`, `verify.cjs`, `workstream.cjs`, `security.cjs`, `schema-detect.cjs`, `graphify.cjs`, `intel.cjs`, and others. Called by workflows that need structured data manipulation.
+### Workflow Surface
 
-### 6. Hooks (`hooks/`)
-Claude Code lifecycle hooks that run before/after tool calls:
-- `gsd-context-monitor.js` — injects warnings when context window fills (≤35% remaining: WARNING, ≤25%: CRITICAL)
-- `gsd-statusline.js` — writes context metrics to a bridge file for the monitor
-- `gsd-prompt-guard.js` — validates prompt structure
-- `gsd-read-guard.js` — guards file reads
-- `gsd-phase-boundary.sh` — enforces phase boundaries
-- `gsd-workflow-guard.js` — prevents invalid workflow transitions
-- `gsd-validate-commit.sh` — validates commit format
-- `gsd-session-state.sh` — persists session state
-- `gsd-check-update.js` / `gsd-check-update-worker.js` — checks for GSD version updates
+Workflow source lives in `get-shit-done/workflows/` and currently contains 109 Markdown workflow files.
 
-### 7. Templates (`get-shit-done/templates/`)
-Boilerplate for planning artifacts: `roadmap.md`, `milestone.md`, `config.json`, `phase-prompt.md`, `verification-report.md`, `SECURITY.md`, `AI-SPEC.md`, `DEBUG.md`, and others. Used by `/gsd-new-project` and related commands to scaffold `.planning/`.
+Workflows are structured prompt programs with XML-like sections such as:
+- `<purpose>`
+- `<required_reading>`
+- `<available_agent_types>`
+- `<process>`
+- `<step>`
 
-### 8. SDK (`sdk/`)
-TypeScript SDK for programmatic, headless access to GSD workflows. Exposes a `GSD` class that composes `parsePlan`, `loadConfig`, `buildExecutorPrompt`, and `runPlanSession`. Includes a `PhaseRunner`, `ContextEngine`, `PromptFactory`, `GSDEventStream`, and a `query/` submodule with registry-based typed queries.
+Key workflows include:
+- `get-shit-done/workflows/new-project.md`
+- `get-shit-done/workflows/plan-phase.md`
+- `get-shit-done/workflows/execute-phase.md`
+- `get-shit-done/workflows/map-codebase.md`
+- `get-shit-done/workflows/security-audit.md`
+- `get-shit-done/workflows/threat-scan.md`
+- `get-shit-done/workflows/audit-skill.md`
+- `get-shit-done/workflows/build-skill.md`
+- `get-shit-done/workflows/tune-skill.md`
 
-### 9. Legacy Commands (`commands/gsd/`)
-Older Claude Code slash command format (pre-v2.1.88). Mirrors the `get-shit-done/workflows/` files but in the format expected by older Claude Code versions. The installer writes these for compatibility.
+### Skill Surface
+
+Installed skills are generated from `commands/gsd/*.md` and workflow references. The current source has 72 command files under `commands/gsd/`.
+
+The Codex-installed skill shape includes a `codex_skill_adapter` block. The Pi-installed skill shape gets Pi adapter guidance, including optional `pi-subagents` mapping from GSD's agent-style workflow syntax to Pi's `subagent` tool when available.
+
+### Agent Registry
+
+Specialized agents live under `agents/`, currently 38 files.
+
+Core agents:
+- `agents/gsd-planner.md`
+- `agents/gsd-executor.md`
+- `agents/gsd-verifier.md`
+- `agents/gsd-codebase-mapper.md`
+- `agents/gsd-code-reviewer.md`
+- `agents/gsd-debugger.md`
+
+Security and skill agents added by this fork:
+- `agents/gsd-security-scanner.md`
+- `agents/gsd-threat-scanner.md`
+- `agents/gsd-security-auditor.md`
+- `agents/gsd-skill-auditor.md`
+- `agents/gsd-skill-scaffolder.md`
+- `agents/gsd-skill-tuner.md`
+
+### Runtime Libraries
+
+CommonJS runtime libraries live under `get-shit-done/bin/lib/`.
+
+Large central modules:
+- `get-shit-done/bin/lib/core.cjs`
+- `get-shit-done/bin/lib/init.cjs`
+- `get-shit-done/bin/lib/state.cjs`
+- `get-shit-done/bin/lib/verify.cjs`
+- `get-shit-done/bin/lib/phase.cjs`
+- `get-shit-done/bin/lib/profile-output.cjs`
+- `get-shit-done/bin/lib/commands.cjs`
+- `get-shit-done/bin/lib/install-profiles.cjs`
+- `get-shit-done/bin/lib/model-catalog.cjs`
+
+These libraries back `gsd-sdk query ...` and legacy `gsd-tools` behavior.
+
+### SDK
+
+The SDK package under `sdk/` is TypeScript and provides programmatic access to GSD operations.
+
+Important SDK components:
+- `sdk/src/cli.ts` for `gsd-sdk`.
+- `sdk/src/index.ts` public API.
+- `sdk/src/session-runner.ts` for model/session execution.
+- `sdk/src/query/` registry handlers for state, config, phase, roadmap, skills, validation, and related queries.
+- `sdk/src/model-catalog.ts` mirrors CJS model catalog behavior.
+- `sdk/shared/model-catalog.json` is the shared source of truth for agents, tiers, phase types, and runtime defaults.
+
+### Security Scanner Subsystem
+
+Security scanner tooling now exists as code, not just documentation:
+- Prescan shell entry: `get-shit-done/bin/security-prescan.sh`
+- Prescan orchestrator: `get-shit-done/bin/security_prescan.py`
+- Pattern loader: `get-shit-done/bin/lib/pattern-loader.cjs`
+- CI helper: `get-shit-done/bin/scan_ci.sh`
+- Baseline helper: `get-shit-done/bin/scan_baseline.py`
+- Scan state helper: `get-shit-done/bin/scan_state.py`
+- SBOM helper: `get-shit-done/bin/sbom_generate.sh`
+- Supply-chain intelligence helper: `get-shit-done/bin/supply_chain_intel.py`
+- Git forensics: `get-shit-done/bin/git_forensics.sh`, `get-shit-done/bin/git_forensics_report.py`
+- Adversarial Semgrep rules: `get-shit-done/semgrep/threat-patterns.yml`
+
+Security workflows use these tools to produce structured findings, then hand those findings to scanner agents for reasoning and triage.
 
 ## Data Flow
 
-### Primary Flow: User Command → Execution
+### Install Flow
 
-```
-1. User types `/gsd-execute-phase 03` in AI tool
-2. AI loads workflow from installed path (e.g., ~/.claude/get-shit-done/workflows/execute-phase.md)
-3. Workflow reads STATE.md from .planning/ to get current project context
-4. Workflow applies pre-flight gate: verifies PLAN.md exists for phase 03
-5. Workflow groups plans into dependency waves
-6. For each wave: spawns gsd-executor subagents in parallel via Task tool
-7. gsd-executor writes code, commits atomically, writes SUMMARY.md
-8. Orchestrator detects ## PLAN COMPLETE marker from each agent
-9. gsd-verifier spawned to verify deliverables against must_haves in PLAN.md
-10. On pass: STATE.md updated, phase marked complete
-11. On fail: escalation gate surfaces issues to developer
+```text
+CLI invocation
+-> bin/install.js parses runtime, location, profile
+-> runtime home resolved
+-> skills staged from commands/workflows
+-> engine files copied to get-shit-done/
+-> agents converted for runtime
+-> hooks/config generated where supported
+-> SDK readiness checked
+-> manifest and install state written
 ```
 
-### Planning Flow: Idea → Roadmap
+Pi-specific branch:
 
-```
-1. /gsd-new-project → questions developer, spawns gsd-project-researcher
-2. Research synthesized into REQUIREMENTS.md by gsd-research-synthesizer
-3. /gsd-plan-phase → gsd-planner creates PLAN.md with YAML frontmatter + XML tasks
-4. gsd-plan-checker revision gate: reviews plan, loops up to 3 iterations
-5. Approved PLAN.md written to .planning/phases/{N}-{name}/{N}-{name}-{NN}-PLAN.md
-```
-
-### Context Protection Flow
-
-```
-gsd-statusline.js (PostToolUse) → writes metrics to /tmp/claude-ctx-{session}.json
-gsd-context-monitor.js (PostToolUse) → reads metrics, injects additionalContext warnings
-Agent receives warning → saves checkpoint or stops gracefully
+```text
+--pi
+-> global ~/.pi/agent or local .pi
+-> install skills/
+-> install get-shit-done/
+-> convert agents through convertClaudeAgentToPiSubagentAgent
+-> inject Pi subagent adapter into core workflow skills
+-> write model/thinking fields when runtime config resolves Pi tiers
 ```
 
-### State Management
+Codex-specific branch:
 
-All persistent state lives in `.planning/` within the user's project:
-- `STATE.md` — current milestone, phase, active workstream, error state
-- `ROADMAP.md` — phased execution plan
-- `phases/{N}-{name}/PLAN.md` — task definitions with YAML frontmatter `must_haves`
-- `phases/{N}-{name}/SUMMARY.md` — executor completion record
-- `phases/{N}-{name}/VERIFICATION.md` — verifier output
-- `config.json` — project config (model profile, context window, YOLO mode)
+```text
+--codex
+-> ~/.codex or .codex
+-> install skills/
+-> install agents/
+-> generate config.toml and per-agent TOML
+-> embed model and model_reasoning_effort from runtime-aware model catalog
+-> configure hooks
+```
 
-## Key Design Patterns
+### Workflow Execution Flow
 
-### Orchestrator / Subagent Pattern
-Workflows are orchestrators — they coordinate, not execute. Heavy work is always delegated to named subagents (`gsd-executor`, `gsd-planner`, `gsd-verifier`, etc.) via the `Task` tool. The orchestrator only routes based on completion markers.
+```text
+User invokes installed skill/command
+-> runtime loads SKILL.md or command markdown
+-> workflow loads .planning state through gsd-sdk query
+-> workflow may spawn agents or use sequential fallback
+-> agents/tools write plans, summaries, docs, reviews, or code
+-> gsd-sdk query commit creates scoped commits when enabled
+-> .planning/STATE.md and related artifacts are updated
+```
 
-### Agent Contract Pattern
-Agents signal state via standardized H2 markers at end of output: `## PLANNING COMPLETE`, `## PLAN COMPLETE`, `## CHECKPOINT REACHED`, etc. Defined in `get-shit-done/references/agent-contracts.md`. The orchestrator parses these to determine next action.
+### Model Resolution Flow
 
-### Gate Pattern (4 gate types)
-Defined in `get-shit-done/references/gates.md`:
-- **Pre-flight**: blocks entry if preconditions unmet (e.g., no PLAN.md)
-- **Revision**: loops producer → checker up to N iterations (stall detection included)
-- **Escalation**: pauses for human decision when loops exhaust
-- **Abort**: immediate stop to prevent waste or damage
+```text
+agent type
+-> sdk/shared/model-catalog.json metadata
+-> model_profile quality/balanced/budget/adaptive/inherit
+-> phase type tier override from models.<phaseType>
+-> runtime tier default from runtimeTierDefaults
+-> model_profile_overrides merge
+-> per-agent model_overrides final override
+-> runtime-specific agent config/frontmatter output
+```
 
-### Context Budget Management
-Every workflow that spawns agents references `references/context-budget.md`. Read depth scales with context window size (< 500K tokens = frontmatter only; ≥ 500K = full bodies). Hooks provide real-time enforcement.
-
-### Spec-First / Must-Haves Contract
-Every PLAN.md carries a `must_haves` YAML frontmatter block with `truths`, `artifacts`, and `key_links`. The verifier agent validates against these post-execution, not against vague prose.
-
-### Wave-Based Parallelism
-`execute-phase.md` groups plans by dependency into "waves." Independent plans within a wave run in parallel subagents; dependent plans run sequentially across waves.
+## Architectural Patterns
 
 ### Runtime Polymorphism
-The installer generates runtime-specific file formats from the same source: skill files for Claude Code 2.1.88+, command files for older Claude Code, `.clinerules` for Cline, `.github/copilot-instructions.md` for Copilot, `AGENTS.md` for other runtimes. Tool name mapping (`Read` → `read`, `Bash` → `execute`) is applied per runtime.
+
+One source set is converted to many runtime formats. The conversion layer handles:
+- frontmatter differences
+- tool allowlist differences
+- runtime path replacements
+- skill adapters
+- agent model fields
+- hooks and config output
+
+Pi and Codex are now first-class examples of this pattern.
+
+### Workflow-As-Orchestrator
+
+Workflows coordinate and gate work. Agents or inline runtime steps do the heavy work. This pattern is explicit in files such as `get-shit-done/workflows/execute-phase.md`, `get-shit-done/workflows/plan-phase.md`, and `get-shit-done/workflows/map-codebase.md`.
+
+### Shared Query Layer
+
+`gsd-sdk query ...` is the stable bridge between prompt workflows and structured code. Workflows avoid ad hoc parsing where possible and call query handlers for state, config, roadmap, phase, commit, and validation operations.
+
+### Catalog-Driven Model Selection
+
+Agent tiering and runtime model defaults moved into `sdk/shared/model-catalog.json`, reducing hardcoded model tables across CJS and TypeScript.
+
+### Deterministic Scan Then AI Triage
+
+Security workflows run deterministic tools first, normalize findings, then ask security agents to reason about impact, false positives, and remediation.
 
 ## Entry Points
 
-**CLI Installer:**
-- `bin/install.js` — invoked via `npx get-shit-done-cc@latest`
-- Flags: `--claude`, `--copilot`, `--gemini`, `--codex`, `--global`, `--local`, `--uninstall`, `--all`
+User/install entry points:
+- `bin/install.js`
+- `bin/gsd-sdk.js`
+- `get-shit-done/bin/gsd-tools.cjs`
 
-**User-facing Commands (invoked in AI tools):**
-- `/gsd-new-project` → starts a new project
-- `/gsd-plan-phase` → plans a phase
-- `/gsd-execute-phase` → executes all plans in a phase
-- `/gsd-next` → advances to next logical step
-- `/gsd-progress` → shows current project state
-- `/gsd-help` → lists all commands
-- ~65 other `/gsd-*` commands defined in `get-shit-done/workflows/`
+Runtime entry points:
+- `commands/gsd/*.md`
+- `get-shit-done/workflows/*.md`
+- installed `skills/gsd-*/SKILL.md`
 
-**Programmatic SDK:**
-- `sdk/src/index.ts` — exports `GSD` class, `PhaseRunner`, `MilestoneRunner`
-- `GSD.executePlan(planPath)` — runs a single plan headlessly
-- `PhaseRunner.runPhase(phaseDir)` — runs all plans in a phase
-- `sdk/src/cli.ts` — CLI wrapper for SDK commands including `gsd-sdk query`
+SDK entry points:
+- `sdk/src/cli.ts`
+- `sdk/src/index.ts`
+- `sdk/src/query/registry.ts`
+
+Security entry points:
+- `get-shit-done/workflows/security-audit.md`
+- `get-shit-done/workflows/threat-scan.md`
+- `get-shit-done/workflows/secure-phase.md`
+- `get-shit-done/bin/security-prescan.sh`
 
 ---
 
-*Architecture analysis: 2026-04-14*
+*Architecture analysis refreshed: 2026-05-13*
