@@ -76,18 +76,26 @@ Draft Feature Request outline:
 - Maintenance burden: low; this uses the existing resolver/model-catalog seam created by #3230 and avoids a new model configuration surface.
 - Prior-art note: reference #2517, #2612, #3023, and #3230 as existing model work; this issue only closes the transport gap between resolution and subagent launch.
 
-### 2. Pi Runtime Integration
+### 2. Pi Runtime Interoperability
 
-Purpose: add first-class Pi install/runtime support while keeping `pi-subagents` optional.
+Purpose: let Pi users work in existing GSD v1 projects and teams that share `.planning/` artifacts, without competing with GSDv2 or adding a Pi-specific parallel implementation.
+
+Draft issue file: `docs/PI-RUNTIME-INTEROPERABILITY-ISSUE-DRAFT.md`
+
+Unique value:
+
+- Interoperability with GSD v1 `.planning/` projects for mixed-runtime teams.
+- A lightweight compatibility layer for Pi users who need to run the same GSD skills/workflows as teammates using Claude Code, Codex, or other GSD v1 runtimes.
+- Preservation of canonical GSD v1 artifacts and workflows rather than migration to, or competition with, GSDv2.
 
 Scope:
 
 - Add `--pi` installer/runtime handling.
 - Install skills and engine files into Pi-compatible global and project paths.
-- Convert Claude-style agents into Pi-compatible subagent definitions.
-- Inject Pi runtime adapter guidance for `subagent` when available.
-- Document optional `pi install npm:pi-subagents` setup.
-- Add Pi installer, converter, and workflow adapter tests.
+- Convert canonical GSD agent definitions into Pi-compatible subagent definitions at install time.
+- Inject Pi runtime adapter guidance for `subagent` only when available, with sequential fallback as the baseline.
+- Document optional `pi install npm:pi-subagents` setup for users who want subagent fan-out.
+- Add behavioral Pi installer, converter, and workflow adapter tests.
 - Rebase over or adapt to #3377's runtime install policy module if it merges first.
 - Use existing model ID resolution for Pi model selection.
 - Map GSD tier intent to Pi-native `thinking` only inside Pi install/agent adapter behavior if needed for `pi-subagents`.
@@ -99,14 +107,17 @@ Out of scope:
 - Hand-maintained duplicate `.pi/agents`.
 - Pi extensions, MCP servers, extra TypeScript dependencies, or package publishing metadata changes.
 - A generic `thinking` field in shared GSD model configuration unless maintainers explicitly request it.
+- GSDv2 replacement, migration, or feature parity.
+- New Pi-specific planning artifacts, schemas, or state files.
+- Automatic `pi install` or network/package-manager side effects during GSD install.
 
 Draft Feature Request outline:
 
-- Problem: Pi users cannot install GSD into Pi-native paths or use GSD's agent-heavy workflows through Pi-compatible subagents.
-- Addition: add `--pi` install/runtime support, Pi skill/engine paths, Pi agent conversion, existing model ID resolution, Pi-native thinking mapping where applicable, and optional `pi-subagents` adapter guidance.
-- Acceptance: global and local Pi installs work, generated Pi agents avoid Claude-only frontmatter, Pi skills avoid Claude path leaks, and workflows fall back sequentially when `subagent` is unavailable.
-- Maintenance burden: moderate; the implementation should stay centralized in installer/runtime conversion code and avoid hand-editing every skill.
-- Prior-art note: explicitly differs from #1405 by generating from canonical agents, avoiding Pi extensions/MCP, avoiding new dependencies, and adding behavioral install/conversion tests.
+- Problem: Pi users cannot reliably participate in GSD v1 codebases where the team already shares `.planning/` artifacts and GSD v1 workflows.
+- Addition: add `--pi` install/runtime support, Pi skill/engine paths, generated Pi agent conversion, existing model ID resolution, Pi-native thinking mapping where applicable, and optional `pi-subagents` adapter guidance.
+- Acceptance: global and local Pi installs work, generated Pi agents avoid Claude-only frontmatter, Pi skills avoid Claude path leaks, `.planning/` artifacts remain canonical and unchanged, and workflows fall back sequentially when `subagent` is unavailable.
+- Maintenance burden: low-to-moderate; the implementation should stay centralized in installer/runtime conversion code and avoid hand-editing every skill or adding Pi extension surfaces.
+- Prior-art note: explicitly differs from #1405 by targeting GSD v1 artifact interoperability, generating from canonical agents, avoiding Pi extensions/MCP, avoiding new dependencies, avoiding package metadata changes, and adding behavioral install/conversion tests.
 
 ### 3. Codex Parallel Subagent Runtime Updates
 
