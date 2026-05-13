@@ -1217,7 +1217,7 @@ Each disabled server removes its schema from every subsequent turn for the rest 
 
 For the full audit, harness reference, and the composition note with `model_profile`, see [MCP Tool Schema Cost](../get-shit-done/references/context-budget.md#mcp-tool-schema-cost-harness-concern) in the bundled `context-budget.md` reference.
 
-### Using Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo)
+### Using Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo, Pi)
 
 If you installed GSD for a non-Claude runtime, the installer already configured model resolution so all agents use the runtime's default model. No manual setup is needed. Specifically, the installer sets `resolve_model_ids: "omit"` in your config, which tells GSD to skip Anthropic model ID resolution and let the runtime choose its own default model.
 
@@ -1234,7 +1234,7 @@ To assign different models to different agents on a non-Claude runtime, add `mod
 }
 ```
 
-The installer auto-configures `resolve_model_ids: "omit"` for Gemini CLI, OpenCode, Kilo, and Codex. If you're manually setting up a non-Claude runtime, add it to `.planning/config.json` yourself.
+The installer auto-configures `resolve_model_ids: "omit"` for Gemini CLI, OpenCode, Kilo, Codex, Pi, and other non-Claude runtimes. If you're manually setting up a non-Claude runtime, add it to `.planning/config.json` yourself.
 
 #### Switching from Claude to Codex with one config change (#2517)
 
@@ -1247,9 +1247,9 @@ If you want tiered models on Codex without writing a large `model_overrides` blo
 }
 ```
 
-GSD will resolve each agent's tier (`opus`/`sonnet`/`haiku`) to the Codex-native model and reasoning effort defined in the runtime tier map (`gpt-5.4` xhigh / `gpt-5.3-codex` medium / `gpt-5.4-mini` medium). The Codex installer embeds both `model` and `model_reasoning_effort` into each agent's TOML automatically. To override a single tier, add `model_profile_overrides.codex.<tier>`. See [Runtime-Aware Profiles](CONFIGURATION.md#runtime-aware-profiles-2517).
+GSD will resolve each agent's tier (`opus`/`sonnet`/`haiku`) to the Codex-native model and reasoning effort defined in the runtime tier map (`gpt-5.4` xhigh / `gpt-5.3-codex` medium / `gpt-5.4-mini` medium). The Codex installer embeds both `model` and `model_reasoning_effort` into each agent's TOML automatically. Pi has a matching `runtime: "pi"` map using `openai-codex/gpt-5.5` (thinking high), `openai-codex/gpt-5.3-codex` (thinking medium), and `openai-codex/gpt-5.4-mini` (thinking low). To override a single tier, add `model_profile_overrides.<runtime>.<tier>`. See [Runtime-Aware Profiles](CONFIGURATION.md#runtime-aware-profiles-2517).
 
-See the [Configuration Reference](CONFIGURATION.md#non-claude-runtimes-codex-opencode-gemini-cli-kilo) for the full explanation.
+See the [Configuration Reference](CONFIGURATION.md#non-claude-runtimes-codex-opencode-gemini-cli-kilo-pi) for the full explanation.
 
 ### Installing for Cline
 
@@ -1285,6 +1285,30 @@ npx get-shit-done-cc --qwen --global
 
 Skills are installed to `~/.qwen/skills/gsd-*/SKILL.md`. Use the `QWEN_CONFIG_DIR` environment variable to override the default install path.
 
+### Installing for Pi
+
+Pi uses the Agent Skills standard and loads skills from `~/.pi/agent/skills/` globally or `.pi/skills/` in a project.
+
+```bash
+npx get-shit-done-cc@latest --pi --global
+```
+
+For GSD's parallel plan, execute, review, map-codebase, docs-update, and manager flows, install Pi's optional subagent extension:
+
+```bash
+pi install npm:pi-subagents
+```
+
+GSD does not install this package for you. If the `subagent` tool is available, Pi skills map GSD's `Agent(...)`, background, parallel-wave, and `TaskOutput` patterns onto pi-subagents. If it is not available, the workflows use the same sequential inline fallback behavior as other runtimes without a reliable subagent API.
+
+After restarting Pi, run:
+
+```text
+/skill:gsd-new-project
+```
+
+Global installs write skills to `~/.pi/agent/skills/gsd-*/SKILL.md`, GSD agents to `~/.pi/agent/agents/`, and engine files to `~/.pi/agent/get-shit-done/`. Local installs write to `./.pi/skills/`, `./.pi/agents/`, and `./.pi/get-shit-done/`. Use `PI_AGENT_HOME` or `PI_CONFIG_DIR` to override the global install path.
+
 ### Installing for Prerelease Editions (Next / Nightly / Insiders / Preview)
 
 Many supported runtimes ship a prerelease edition alongside their stable release — Windsurf Next, Cursor Nightly, VS Code Insiders, Codex preview channels, JetBrains EAP, and so on. Prerelease editions read from a sibling configuration directory, so the default install path won't reach them.
@@ -1314,6 +1338,7 @@ Select the corresponding stable runtime in the installer prompt. Skills land in 
 | Augment | `~/.augment` | `AUGMENT_CONFIG_DIR` |
 | Trae | `~/.trae` | `TRAE_CONFIG_DIR` |
 | Qwen Code | `~/.qwen` | `QWEN_CONFIG_DIR` |
+| Pi | `~/.pi/agent` | `PI_AGENT_HOME` or `PI_CONFIG_DIR` |
 | Kilo | `~/.config/kilo` | `KILO_CONFIG_DIR` |
 | CodeBuddy | `~/.codebuddy` | `CODEBUDDY_CONFIG_DIR` |
 | Cline | `~/.cline` | `CLINE_CONFIG_DIR` |
