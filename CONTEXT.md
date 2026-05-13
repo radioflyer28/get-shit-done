@@ -67,6 +67,9 @@ Module owning runtime-aware global skills directory policy for SDK query surface
 ### Installer Migration Authoring Guard Module
 Module owning validation for Installer Migration Module records and planned actions. It enforces migration metadata, explicit install scopes, ownership evidence for destructive/config actions, and runtime contract citations for runtime config rewrites before a migration can enter planning or apply.
 
+### Skill Surface Budget Module
+Module owning which skills and agents are written to runtime config directories at install time (Phase 1) and at runtime via cluster-level toggles (Phase 2). Phase 1: `get-shit-done/bin/lib/install-profiles.cjs` defines named profiles (`core`, `standard`, `full`), computes transitive closure over `requires:` frontmatter, stages skills/agents to runtime config dirs, and persists the chosen profile in a `.gsd-profile` marker. Profile resolution precedence: explicit `--profile=` flag > `.gsd-profile` marker > `full`. `--minimal`/`--core-only` are back-compat aliases for `--profile=core`. Phase 2: `get-shit-done/bin/lib/surface.cjs` implements the `/gsd:surface` slash command for cluster-level enable/disable without reinstall; cluster definitions live in `get-shit-done/bin/lib/clusters.cjs`; per-runtime state persists in `<runtimeConfigDir>/.gsd-surface.json` independent from the `.gsd-profile` marker. See ADR-0011.
+
 ### MVP Mode
 Phase-level planning mode that frames work as a vertical slice (UI → API → DB) of one user-visible capability instead of horizontal layers. Resolved at workflow init via the precedence chain: `--mvp` CLI flag → ROADMAP.md `**Mode:** mvp` field → `workflow.mvp_mode` config → false. All-or-nothing per phase (PRD #2826 Q1). Surfaced as `MVP_MODE=true|false` to the planner, executor, verifier, and discovery surfaces (progress, stats, graphify). Canonical parser: `roadmap.cjs` `**Mode:**` field; canonical resolution chain documented in `workflows/plan-phase.md`. Concept index: `references/mvp-concepts.md`.
 
@@ -242,6 +245,21 @@ After stripping prose @-refs, some command `<process>` blocks retained bolded "*
 `RULESET.CONTRIB.CLASSIFY.fix=requires confirmed/confirmed-bug before implementation`
 `RULESET.CONTRIB.CLASSIFY.enhancement=requires approved-enhancement before implementation`
 `RULESET.CONTRIB.CLASSIFY.feature=requires approved-feature before implementation`
+
+## AI Ops Memory (2026-05-10, machine-oriented)
+
+`RULESET.GH.AUTH.DEFAULT=source .envrc GITHUB_TOKEN before gh; exception=ambient allowed only when user explicitly says machine-only fallback`
+`RULESET.CODERABBIT.GUARD.OPEN_PRS=gh pr list --repo gsd-build/get-shit-done --author @me --state open; repeat near end because open PR set can change mid-run`
+`RULESET.CODERABBIT.GUARD.COMPLETE=required_checks_green && coderabbit_check_pass && graphQL(reviewThreads.unresolved_count)==0`
+`RULESET.CODERABBIT.GUARD.GRAPHQL=reviewThreads(first:100){nodes{id isResolved comments{nodes{author body path line originalLine url}}}}; use unresolved threads as authoritative, not badge text alone`
+`RULESET.CODERABBIT.GUARD.RERUN=after every push wait for CodeRabbit completion, then re-query unresolved threads; CodeRabbit can add new findings after earlier threads were resolved`
+`RULESET.CODERABBIT.GUARD.RESOLVE=fix validated finding -> focused tests -> commit/push -> resolveReviewThread(threadId) -> wait CI/CodeRabbit -> final unresolved_count query`
+`RULESET.CODERABBIT.GUARD.SCOPE=if a new @me open PR appears during final list, include it in the same guard pass before declaring all-open-PRs complete`
+`RULESET.TESTS.CODERABBIT_FIX=prefer exported-function behavioral tests over source-grep; lint-no-source-grep rejects readFileSync source assertions without allow-test-rule`
+`RULESET.WORKFLOW_MARKDOWN.FENCES=when editing shell snippets inside workflow markdown, preserve the opening language fence; malformed fence can create fresh CodeRabbit threads`
+`RULESET.WORKFLOW_SIZE_BUDGET=workflow-size-budget can fail otherwise-valid review fixes; keep XL workflows <=1800 lines or trim prose in same PR before final checks`
+`RULESET.GEMINI.TOOLS.ask_user=Gemini CLI has no ask_user tool; filter both AskUserQuestion and lowercase ask_user from tools frontmatter and neutralize both names in Gemini body text`
+`RULESET.GEMINI.TEST_SENTINEL=convertClaudeToGeminiAgent regression should assert tools excludes ask_user, body excludes AskUserQuestion/ask_user, and Read still maps to read_file`
 
 `CI.GATE.issue-link-required=hard-fail if PR body lacks closes/fixes/resolves #<issue>`
 `CI.GATE.changeset-lint=hard-fail for user-facing code diffs unless .changeset/* or PR has no-changelog label`

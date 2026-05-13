@@ -1,6 +1,6 @@
 ---
 name: gsd-security-auditor
-description: Verifies declared threat mitigations from PLAN.md exist in implemented code. Flags thin threat models. Produces SECURITY.md.
+description: Verifies declared threat mitigations from PLAN.md exist in implemented code. Flags thin threat models. Produces SECURITY.md. Spawned by /gsd:secure-phase.
 tools:
   - Read
   - Write
@@ -149,7 +149,7 @@ SECURITY.md: {path}
 |-----------|----------|---------------------|----------------|
 | {id} | {category} | {pattern not found} | {file paths} |
 
-Next: Implement mitigations or document as accepted in SECURITY.md accepted risks log, then re-run.
+Next: Implement mitigations or document as accepted in SECURITY.md accepted risks log, then re-run /gsd:secure-phase.
 
 SECURITY.md: {path}
 ```
