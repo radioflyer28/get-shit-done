@@ -65,6 +65,29 @@ When `--paths` is absent, behave exactly as before: full-repo scan, all 7
 documents refreshed.
 </step>
 
+<step name="parse_codex_parallel_flag" priority="first">
+Parse an optional `--parallel` argument.
+
+`--parallel` is an explicit Codex authorization flag for this workflow invocation.
+When the runtime is Codex and `spawn_agent` is available, `--parallel` allows the
+workflow to use Codex subagents for the codebase mapping fan-out. Without this
+flag or an equivalent explicit user phrase such as "use parallel subagents",
+Codex MUST use `sequential_mapping` even though `spawn_agent` exists.
+
+Remove `--parallel` from the focus/path argument string before building mapper
+prompts. Keep a boolean:
+
+```bash
+CODEX_PARALLEL_REQUESTED=false
+if [[ " $ARGUMENTS " == *" --parallel "* ]]; then
+  CODEX_PARALLEL_REQUESTED=true
+fi
+```
+
+This preserves Codex's subagent safety contract while allowing users to opt into
+the parallel behavior GSD already uses in Claude Code.
+</step>
+
 <step name="init_context" priority="first">
 Load codebase mapping context:
 
@@ -127,9 +150,17 @@ Continue to spawn_agents.
 </step>
 
 <step name="detect_runtime_capabilities">
-Before spawning agents, detect whether the current runtime supports the `Agent` tool for subagent delegation.
+Before spawning agents, detect whether the current runtime supports subagent delegation.
 
-**How to detect:** Check if you have access to an `Agent` tool (may be capitalized as `Agent` or lowercase as `agent` depending on runtime). If you do NOT have an `Agent`/`agent` tool (or only have tools like `browser_subagent` which is for web browsing, NOT code analysis):
+**Claude/OpenCode-style runtimes:** Check if you have access to an `Agent` tool (may be capitalized as `Agent` or lowercase as `agent` depending on runtime).
+
+**Codex runtime:** Check if you have access to `spawn_agent` and `wait_agent`.
+
+- If `spawn_agent` / `wait_agent` are available AND `CODEX_PARALLEL_REQUESTED=true`, skip `spawn_agents` and `collect_confirmations`, then use `codex_spawn_agents`.
+- If `spawn_agent` / `wait_agent` are available BUT `CODEX_PARALLEL_REQUESTED=false`, go to `sequential_mapping`.
+- If `spawn_agent` / `wait_agent` are unavailable, go to `sequential_mapping`.
+
+**Other runtimes:** If you do NOT have an `Agent`/`agent` tool (or only have tools like `browser_subagent` which is for web browsing, NOT code analysis):
 
 → **Skip `spawn_agents` and `collect_confirmations`** — go directly to `sequential_mapping` instead.
 
@@ -251,6 +282,58 @@ ${AGENT_SKILLS_MAPPER}"
 Continue to collect_confirmations.
 </step>
 
+<step name="codex_spawn_agents" condition="Codex spawn_agent and wait_agent are available AND explicit --parallel authorization was provided">
+Spawn 4 parallel `gsd-codebase-mapper` agents using Codex collaboration tools.
+
+**Authorization gate:** Only run this step when the user explicitly invoked
+`$gsd-map-codebase --parallel` or used equivalent direct language such as
+"use parallel subagents". If authorization is absent, use `sequential_mapping`.
+
+**Ownership rule:** Assign disjoint write targets so agents cannot overwrite each
+other's files:
+- Tech mapper owns `.planning/codebase/STACK.md` and `.planning/codebase/INTEGRATIONS.md`
+- Architecture mapper owns `.planning/codebase/ARCHITECTURE.md` and `.planning/codebase/STRUCTURE.md`
+- Quality mapper owns `.planning/codebase/CONVENTIONS.md` and `.planning/codebase/TESTING.md`
+- Concerns mapper owns `.planning/codebase/CONCERNS.md`
+
+**Codex spawn pattern:**
+
+```text
+spawn_agent(
+  agent_type="gsd-codebase-mapper",
+  fork_context=false,
+  message="Focus: tech
+Today's date: {date}
+
+Analyze this codebase for technology stack and external integrations.
+
+Write only these documents:
+- .planning/codebase/STACK.md
+- .planning/codebase/INTEGRATIONS.md
+
+IMPORTANT: Use {date} for all [YYYY-MM-DD] date placeholders in documents.
+Scope: ${PATH_SCOPE_HINT:-(full repo)}
+Return confirmation only with file paths and line counts.
+${AGENT_SKILLS_MAPPER}"
+)
+```
+
+Repeat the same pattern for the architecture, quality, and concerns ownership
+sets above. Spawn all four agents before waiting.
+
+**Codex wait pattern:**
+
+```text
+wait_agent([tech_agent_id, arch_agent_id, quality_agent_id, concerns_agent_id])
+```
+
+After all agents complete:
+- Collect only confirmations and line counts.
+- Do NOT independently read the source tree while agents are active.
+- Close completed agents when no longer needed.
+- Continue to `verify_output`.
+</step>
+
 <step name="collect_confirmations">
 Wait for all 4 agents to complete using TaskOutput tool.
 
@@ -287,8 +370,8 @@ If any agent failed, note the failure and continue with successful documents.
 Continue to verify_output.
 </step>
 
-<step name="sequential_mapping" condition="Agent tool is NOT available (e.g. Antigravity, Gemini CLI, Codex)">
-When the `Agent` tool is unavailable, perform codebase mapping sequentially in the current context. This replaces `spawn_agents` and `collect_confirmations`.
+<step name="sequential_mapping" condition="Subagent delegation is unavailable, unsupported, or not explicitly authorized for Codex">
+When subagent delegation is unavailable or not explicitly authorized, perform codebase mapping sequentially in the current context. This replaces `spawn_agents`, `codex_spawn_agents`, and `collect_confirmations`.
 
 **IMPORTANT:** Do NOT use `browser_subagent`, `Explore`, or any browser-based tool. Use only file system tools (Read, Bash, Write, Grep, Glob, list_dir, view_file, grep_search, or equivalent tools available in your runtime).
 
@@ -435,7 +518,8 @@ End workflow.
 <success_criteria>
 - .planning/codebase/ directory created
 - If Agent tool available: 4 parallel gsd-codebase-mapper agents spawned with run_in_background=true
-- If Agent tool NOT available: 4 sequential mapping passes performed inline (never using browser_subagent)
+- If Codex spawn_agent is available and `--parallel` was explicitly requested: 4 parallel gsd-codebase-mapper agents spawned with disjoint write ownership
+- If subagents are unavailable or not explicitly authorized for Codex: 4 sequential mapping passes performed inline (never using browser_subagent)
 - All 7 codebase documents exist
 - No empty documents (each should have >20 lines)
 - Clear completion summary with line counts

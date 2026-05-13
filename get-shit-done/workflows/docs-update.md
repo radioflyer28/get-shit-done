@@ -760,10 +760,10 @@ Collect confirmations via TaskOutput for all package agents. Note failures in th
 Continue to commit_docs.
 </step>
 
-<step name="sequential_generation" condition="Task tool is NOT available (e.g. Antigravity, Gemini CLI, Codex, Copilot)">
+<step name="sequential_generation" condition="Task/subagent tool is NOT available, or Codex subagents were not explicitly authorized for this invocation (e.g. Antigravity, Gemini CLI, Copilot, Codex without explicit subagent permission)">
 **Read the work manifest first:** `Read .planning/tmp/docs-work-manifest.json` — use `canonical_queue` items for generation order. Update `status` after each doc is generated. Write the updated manifest back to disk after all docs are complete.
 
-When the `Task` tool is unavailable, generate docs sequentially in the current context. This step replaces dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
+When the `Task` tool is unavailable, or when Codex `spawn_agent` exists but the user did not explicitly request subagents for this invocation, generate docs sequentially in the current context. This step replaces dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
 
 **IMPORTANT:** Do NOT use `browser_subagent`, `Explore`, or any browser-based tool. Use only file system tools (Read, Bash, Write, Grep, Glob, or equivalent tools available in your runtime).
 
