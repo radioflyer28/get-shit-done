@@ -150,7 +150,7 @@ workflow size budget enforced by `tests/workflow-size-budget.test.cjs`
 mirrors the agent budget from #2361:
 
 | Tier      | Per-file line limit |
-|-----------|--------------------|
+|-----------|--------------------|  
 | `XL`      | 1700 — top-level orchestrators (`execute-phase`, `plan-phase`, `new-project`) |
 | `LARGE`   | 1500 — multi-step planners and large feature workflows |
 | `DEFAULT` | 1000 — focused single-purpose workflows (the target tier) |
@@ -178,7 +178,7 @@ Specialized agent definitions with frontmatter specifying:
 - `tools` — Allowed tool access (Read, Write, Edit, Bash, Grep, Glob, WebSearch, etc.)
 - `color` — Terminal output color for visual distinction
 
-**Total agents:** 33
+**Total agents:** 34
 
 ### References (`get-shit-done/references/*.md`)
 

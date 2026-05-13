@@ -381,9 +381,9 @@ tools: Read, Grep, Glob
 // ─── CODEX_AGENT_SANDBOX mapping ────────────────────────────────────────────────
 
 describe('CODEX_AGENT_SANDBOX', () => {
-  test('has all 11 agents mapped', () => {
+  test('has all 13 agents mapped', () => {
     const agentNames = Object.keys(CODEX_AGENT_SANDBOX);
-    assert.strictEqual(agentNames.length, 11, 'has 11 agents');
+    assert.strictEqual(agentNames.length, 13, 'has 13 agents');
   });
 
   test('workspace-write agents have write tools', () => {
@@ -398,10 +398,14 @@ describe('CODEX_AGENT_SANDBOX', () => {
   });
 
   test('read-only agents have no write tools', () => {
-    const readOnlyAgents = ['gsd-plan-checker', 'gsd-integration-checker'];
+    const readOnlyAgents = ['gsd-plan-checker', 'gsd-integration-checker', 'gsd-threat-scanner'];
     for (const name of readOnlyAgents) {
       assert.strictEqual(CODEX_AGENT_SANDBOX[name], 'read-only', `${name} is read-only`);
     }
+  });
+
+  test('security-scanner has workspace-write', () => {
+    assert.strictEqual(CODEX_AGENT_SANDBOX['gsd-security-scanner'], 'workspace-write', 'gsd-security-scanner is workspace-write');
   });
 });
 

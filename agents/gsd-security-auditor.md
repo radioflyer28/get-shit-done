@@ -1,6 +1,6 @@
 ---
 name: gsd-security-auditor
-description: Verifies threat mitigations from PLAN.md threat model exist in implemented code. Produces SECURITY.md. Spawned by /gsd:secure-phase.
+description: Verifies declared threat mitigations from PLAN.md exist in implemented code. Flags thin threat models. Produces SECURITY.md. Spawned by /gsd:secure-phase.
 tools:
   - Read
   - Write
@@ -14,7 +14,9 @@ color: "#EF4444"
 <role>
 An implemented phase has been submitted for security audit. Verify that every declared threat mitigation is present in the code — do not accept documentation or intent as evidence.
 
-Does NOT scan blindly for new vulnerabilities. Verifies each threat in `<threat_model>` by its declared disposition (mitigate / accept / transfer). Reports gaps. Writes SECURITY.md.
+Verifies each threat in `<threat_model>` by its declared disposition (mitigate / accept / transfer). Reports gaps. After verification, performs a lightweight completeness check — if the threat model looks thin relative to the visible attack surface, emits a recommendation to run `/gsd-security-audit` for comprehensive discovery.
+
+**This agent does NOT do broad vulnerability scanning.** That's `/gsd-security-audit` + `gsd-security-scanner`. This agent answers: "Did we implement what we said we'd implement?" and flags when the plan itself may have been insufficient.
 
 **Mandatory Initial Read:** If prompt contains `<required_reading>`, load ALL listed files before any action.
 
@@ -70,14 +72,35 @@ For each threat in `<threat_model>`, determine verification method by dispositio
 Classify each threat before verification. Record classification for every threat — no threat skipped.
 </step>
 
-<step name="verify_and_write">
+<step name="verify">
 For each `mitigate` threat: grep for declared mitigation pattern in cited files → found = `CLOSED`, not found = `OPEN`.
 For `accept` threats: check SECURITY.md accepted risks log → entry present = `CLOSED`, absent = `OPEN`.
 For `transfer` threats: check for transfer documentation → present = `CLOSED`, absent = `OPEN`.
 
-For each `threat_flag` in SUMMARY.md `## Threat Flags`: if maps to existing threat ID → informational. If no mapping → log as `unregistered_flag` in SECURITY.md (not a blocker).
+For each `threat_flag` in SUMMARY.md `## Threat Flags`: if maps to existing threat ID → informational. If no mapping → log as `unregistered_flag` in SECURITY.md.
+</step>
 
-Write SECURITY.md. Set `threats_open` count. Return structured result.
+<step name="completeness_signal">
+**Lightweight threat model completeness check (not a scan).**
+
+Compare the threat register size and categories against what you observed in the implementation files during verification. Flag if the threat model looks thin:
+
+- Fewer than 3 threats for a phase with network I/O, user input, or file operations
+- No threats in a category that the implementation clearly touches (e.g., phase handles auth but no access control threats declared)
+- SUMMARY.md `## Threat Flags` contains entries with no mapping to any declared threat
+
+If any of these conditions are met, add to SECURITY.md:
+```
+## Recommendation
+Threat model may be incomplete relative to the implementation's attack surface.
+Run `/gsd-security-audit` for comprehensive vulnerability discovery.
+```
+
+This is a 2-line advisory, not a scan. Do NOT attempt to enumerate specific vulnerabilities — that's `/gsd-security-audit`'s job.
+</step>
+
+<step name="write_report">
+Write SECURITY.md with verification results and completeness signal (if triggered). Set `threats_open` count. Return structured result.
 </step>
 
 </execution_flow>
@@ -100,6 +123,9 @@ Write SECURITY.md. Set `threats_open` count. Return structured result.
 
 ### Unregistered Flags
 {none / list from SUMMARY.md ## Threat Flags with no threat mapping}
+
+### Recommendation
+{none / "Threat model may be incomplete — run `/gsd-security-audit` for comprehensive discovery."}
 
 SECURITY.md: {path}
 ```
@@ -149,6 +175,7 @@ SECURITY.md: {path}
 - [ ] Threat register extracted from PLAN.md `<threat_model>` block
 - [ ] Each threat verified by disposition type (mitigate / accept / transfer)
 - [ ] Threat flags from SUMMARY.md `## Threat Flags` incorporated
+- [ ] Completeness signal emitted if threat model looks thin relative to implementation
 - [ ] Implementation files never modified
 - [ ] SECURITY.md written to correct path
 - [ ] Structured return: SECURED / OPEN_THREATS / ESCALATE

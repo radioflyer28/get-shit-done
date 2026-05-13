@@ -18,6 +18,8 @@ Model profiles control which Claude model each GSD agent uses. This allows balan
 | gsd-plan-checker | sonnet | sonnet | haiku | haiku | inherit |
 | gsd-integration-checker | sonnet | sonnet | haiku | haiku | inherit |
 | gsd-nyquist-auditor | sonnet | sonnet | haiku | haiku | inherit |
+| gsd-security-scanner | opus | sonnet | sonnet | sonnet | inherit |
+| gsd-threat-scanner | opus | opus | sonnet | opus | inherit |
 
 ## Per-Phase-Type Model Map (#3023)
 
