@@ -48,6 +48,8 @@ Adjusted positioning:
 
 Purpose: ensure the reasoning effort already resolved by GSD reaches agent/subagent launch paths where the runtime accepts it, without reopening the already-merged runtime-aware model profile design.
 
+Draft issue file: `docs/AGENT-LAUNCH-REASONING-TRANSPORT-ISSUE-DRAFT.md`
+
 Scope:
 
 - Preserve existing Codex `reasoning_effort` resolution and allowlist behavior.
