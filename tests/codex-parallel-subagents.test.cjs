@@ -1,4 +1,4 @@
-// allow-test-rule: source-text-is-product
+// allow-test-rule: source-text-is-the-product
 
 /**
  * Regression coverage for Codex subagent parallelism in GSD workflows.

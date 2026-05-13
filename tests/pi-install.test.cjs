@@ -1,3 +1,4 @@
+// allow-test-rule: source-text-is-the-product
 process.env.GSD_TEST_MODE = '1';
 
 const { test, describe, beforeEach, afterEach } = require('node:test');
