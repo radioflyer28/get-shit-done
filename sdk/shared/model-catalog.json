@@ -117,6 +117,11 @@
     "gsd-framework-selector":     { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "planning",     "routingTier": "heavy" },
     "gsd-intel-updater":          { "golden": "opus",   "balanced": "sonnet", "budget": "haiku",  "phaseType": "research",     "routingTier": "light" },
     "gsd-security-auditor":       { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "verification", "routingTier": "heavy" },
+    "gsd-security-scanner":       { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "verification", "routingTier": "heavy" },
+    "gsd-skill-auditor":          { "golden": "sonnet", "balanced": "sonnet", "budget": "haiku",  "phaseType": "verification", "routingTier": "standard" },
+    "gsd-skill-scaffolder":       { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "execution",    "routingTier": "standard" },
+    "gsd-skill-tuner":            { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "execution",    "routingTier": "standard" },
+    "gsd-threat-scanner":         { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "verification", "routingTier": "heavy" },
     "gsd-user-profiler":          { "golden": "opus",   "balanced": "sonnet", "budget": "sonnet", "phaseType": "research",     "routingTier": "heavy" }
   }
 }
