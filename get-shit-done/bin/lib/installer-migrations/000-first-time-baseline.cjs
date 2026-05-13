@@ -26,6 +26,7 @@ const RUNTIME_SURFACES = {
   trae: ['get-shit-done', 'skills', 'agents', 'rules'],
   qwen: ['get-shit-done', 'skills', 'agents'],
   hermes: ['get-shit-done', 'skills/gsd', 'agents'],
+  pi: ['get-shit-done', 'skills', 'agents'],
   cline: ['get-shit-done', 'skills', 'agents'],
   codebuddy: ['get-shit-done', 'skills', 'agents'],
 };

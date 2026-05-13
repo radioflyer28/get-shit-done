@@ -116,6 +116,7 @@ const hasAugment = args.includes('--augment');
 const hasTrae = args.includes('--trae');
 const hasQwen = args.includes('--qwen');
 const hasHermes = args.includes('--hermes');
+const hasPi = args.includes('--pi');
 const hasCodebuddy = args.includes('--codebuddy');
 const hasCline = args.includes('--cline');
 const hasBoth = args.includes('--both'); // Legacy flag, keeps working
@@ -136,7 +137,7 @@ if (hasSdk && hasNoSdk) {
 // Runtime selection - can be set by flags or interactive prompt
 let selectedRuntimes = [];
 if (hasAll) {
-  selectedRuntimes = ['claude', 'kilo', 'opencode', 'gemini', 'codex', 'copilot', 'antigravity', 'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'hermes', 'codebuddy', 'cline'];
+  selectedRuntimes = ['claude', 'kilo', 'opencode', 'gemini', 'codex', 'copilot', 'antigravity', 'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'hermes', 'pi', 'codebuddy', 'cline'];
 } else if (hasBoth) {
   selectedRuntimes = ['claude', 'opencode'];
 } else {
@@ -153,6 +154,7 @@ if (hasAll) {
   if (hasTrae) selectedRuntimes.push('trae');
   if (hasQwen) selectedRuntimes.push('qwen');
   if (hasHermes) selectedRuntimes.push('hermes');
+  if (hasPi) selectedRuntimes.push('pi');
   if (hasCodebuddy) selectedRuntimes.push('codebuddy');
   if (hasCline) selectedRuntimes.push('cline');
 }
@@ -205,6 +207,7 @@ function getDirName(runtime) {
   if (runtime === 'trae') return '.trae';
   if (runtime === 'qwen') return '.qwen';
   if (runtime === 'hermes') return '.hermes';
+  if (runtime === 'pi') return '.pi';
   if (runtime === 'codebuddy') return '.codebuddy';
   if (runtime === 'cline') return '.cline';
   return '.claude';
@@ -241,6 +244,7 @@ function getConfigDirFromHome(runtime, isGlobal) {
   if (runtime === 'trae') return "'.trae'";
   if (runtime === 'qwen') return "'.qwen'";
   if (runtime === 'hermes') return "'.hermes'";
+  if (runtime === 'pi') return "'.pi', 'agent'";
   if (runtime === 'codebuddy') return "'.codebuddy'";
   if (runtime === 'cline') return "'.cline'";
   return "'.claude'";
@@ -428,6 +432,20 @@ function getGlobalDir(runtime, explicitDir = null) {
     return path.join(os.homedir(), '.hermes');
   }
 
+  if (runtime === 'pi') {
+    // Pi Coding Agent: --config-dir > PI_AGENT_HOME > PI_CONFIG_DIR > ~/.pi/agent
+    if (explicitDir) {
+      return expandTilde(explicitDir);
+    }
+    if (process.env.PI_AGENT_HOME) {
+      return expandTilde(process.env.PI_AGENT_HOME);
+    }
+    if (process.env.PI_CONFIG_DIR) {
+      return expandTilde(process.env.PI_CONFIG_DIR);
+    }
+    return path.join(os.homedir(), '.pi', 'agent');
+  }
+
   if (runtime === 'codebuddy') {
     // CodeBuddy: --config-dir > CODEBUDDY_CONFIG_DIR > ~/.codebuddy
     if (explicitDir) {
@@ -470,7 +488,7 @@ const banner = '\n' +
   '\n' +
   '  Get Shit Done ' + dim + 'v' + pkg.version + reset + '\n' +
   '  A meta-prompting, context engineering and spec-driven\n' +
-  '  development system for Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Antigravity, Cursor, Windsurf, Augment, Trae, Qwen Code, Hermes Agent, Cline and CodeBuddy by TÂCHES.\n';
+  '  development system for Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Antigravity, Cursor, Windsurf, Augment, Trae, Qwen Code, Hermes Agent, Pi, Cline and CodeBuddy by TÂCHES.\n';
 
 // Parse --config-dir argument
 function parseConfigDirArg() {
@@ -508,7 +526,7 @@ if (hasUninstall) {
 
 // Show help if requested
 if (hasHelp) {
-  console.log(`  ${yellow}Usage:${reset} npx get-shit-done-cc [options]\n\n  ${yellow}Options:${reset}\n    ${cyan}-g, --global${reset}              Install globally (to config directory)\n    ${cyan}-l, --local${reset}               Install locally (to current directory)\n    ${cyan}--claude${reset}                  Install for Claude Code only\n    ${cyan}--opencode${reset}                Install for OpenCode only\n    ${cyan}--gemini${reset}                  Install for Gemini only\n    ${cyan}--kilo${reset}                    Install for Kilo only\n    ${cyan}--codex${reset}                   Install for Codex only\n    ${cyan}--copilot${reset}                 Install for Copilot only\n    ${cyan}--antigravity${reset}             Install for Antigravity only\n    ${cyan}--cursor${reset}                  Install for Cursor only\n    ${cyan}--windsurf${reset}                Install for Windsurf only\n    ${cyan}--augment${reset}                 Install for Augment only\n    ${cyan}--trae${reset}                    Install for Trae only\n    ${cyan}--qwen${reset}                    Install for Qwen Code only\n    ${cyan}--hermes${reset}                  Install for Hermes Agent only\n    ${cyan}--cline${reset}                   Install for Cline only\n    ${cyan}--codebuddy${reset}              Install for CodeBuddy only\n    ${cyan}--all${reset}                     Install for all runtimes\n    ${cyan}-u, --uninstall${reset}           Uninstall GSD (remove all GSD files)\n    ${cyan}-c, --config-dir <path>${reset}   Specify custom config directory\n    ${cyan}-h, --help${reset}                Show this help message\n    ${cyan}--force-statusline${reset}        Replace existing statusline config\n    ${cyan}--portable-hooks${reset}          Emit \$HOME-relative hook paths in settings.json\n                              (for WSL/Docker bind-mount setups; also GSD_PORTABLE_HOOKS=1)\n    ${cyan}--minimal${reset}                 Install only the main-loop skills (new-project,\n                              discuss-phase, plan-phase, execute-phase, help, update)\n                              and zero gsd-* subagents. Cuts cold-start system-prompt\n                              overhead from ~12k tokens to ~700 — useful for local LLMs\n                              with 32K–128K context. Re-run \`gsd update\` (without --minimal)\n                              to expand to the full surface. Alias: --core-only.\n\n  ${yellow}Examples:${reset}\n    ${dim}# Interactive install (prompts for runtime and location)${reset}\n    npx get-shit-done-cc\n\n    ${dim}# Install for Claude Code globally${reset}\n    npx get-shit-done-cc --claude --global\n\n    ${dim}# Install for Gemini globally${reset}\n    npx get-shit-done-cc --gemini --global\n\n    ${dim}# Install for Kilo globally${reset}\n    npx get-shit-done-cc --kilo --global\n\n    ${dim}# Install for Codex globally${reset}\n    npx get-shit-done-cc --codex --global\n\n    ${dim}# Install for Copilot globally${reset}\n    npx get-shit-done-cc --copilot --global\n\n    ${dim}# Install for Copilot locally${reset}\n    npx get-shit-done-cc --copilot --local\n\n    ${dim}# Install for Antigravity globally${reset}\n    npx get-shit-done-cc --antigravity --global\n\n    ${dim}# Install for Antigravity locally${reset}\n    npx get-shit-done-cc --antigravity --local\n\n    ${dim}# Install for Cursor globally${reset}\n    npx get-shit-done-cc --cursor --global\n\n    ${dim}# Install for Cursor locally${reset}\n    npx get-shit-done-cc --cursor --local\n\n    ${dim}# Install for Windsurf globally${reset}\n    npx get-shit-done-cc --windsurf --global\n\n    ${dim}# Install for Windsurf locally${reset}\n    npx get-shit-done-cc --windsurf --local\n\n    ${dim}# Install for Augment globally${reset}\n    npx get-shit-done-cc --augment --global\n\n    ${dim}# Install for Augment locally${reset}\n    npx get-shit-done-cc --augment --local\n\n    ${dim}# Install for Trae globally${reset}\n    npx get-shit-done-cc --trae --global\n\n    ${dim}# Install for Trae locally${reset}\n    npx get-shit-done-cc --trae --local\n\n    ${dim}# Install for Hermes Agent globally${reset}\n    npx get-shit-done-cc --hermes --global\n\n    ${dim}# Install for Hermes Agent locally${reset}\n    npx get-shit-done-cc --hermes --local\n\n    ${dim}# Install for Cline locally${reset}\n    npx get-shit-done-cc --cline --local\n\n    ${dim}# Install for CodeBuddy globally${reset}\n    npx get-shit-done-cc --codebuddy --global\n\n    ${dim}# Install for CodeBuddy locally${reset}\n    npx get-shit-done-cc --codebuddy --local\n\n    ${dim}# Install for all runtimes globally${reset}\n    npx get-shit-done-cc --all --global\n\n    ${dim}# Install to custom config directory${reset}\n    npx get-shit-done-cc --kilo --global --config-dir ~/.kilo-work\n\n    ${dim}# Install to current project only${reset}\n    npx get-shit-done-cc --claude --local\n\n    ${dim}# Uninstall GSD from Cursor globally${reset}\n    npx get-shit-done-cc --cursor --global --uninstall\n\n  ${yellow}Notes:${reset}\n    The --config-dir option is useful when you have multiple configurations.\n    It takes priority over CLAUDE_CONFIG_DIR / OPENCODE_CONFIG_DIR / GEMINI_CONFIG_DIR / KILO_CONFIG_DIR / CODEX_HOME / COPILOT_CONFIG_DIR / ANTIGRAVITY_CONFIG_DIR / CURSOR_CONFIG_DIR / WINDSURF_CONFIG_DIR / AUGMENT_CONFIG_DIR / TRAE_CONFIG_DIR / QWEN_CONFIG_DIR / HERMES_HOME / CLINE_CONFIG_DIR / CODEBUDDY_CONFIG_DIR environment variables.\n`);
+  console.log(`  ${yellow}Usage:${reset} npx get-shit-done-cc [options]\n\n  ${yellow}Options:${reset}\n    ${cyan}-g, --global${reset}              Install globally (to config directory)\n    ${cyan}-l, --local${reset}               Install locally (to current directory)\n    ${cyan}--claude${reset}                  Install for Claude Code only\n    ${cyan}--opencode${reset}                Install for OpenCode only\n    ${cyan}--gemini${reset}                  Install for Gemini only\n    ${cyan}--kilo${reset}                    Install for Kilo only\n    ${cyan}--codex${reset}                   Install for Codex only\n    ${cyan}--copilot${reset}                 Install for Copilot only\n    ${cyan}--antigravity${reset}             Install for Antigravity only\n    ${cyan}--cursor${reset}                  Install for Cursor only\n    ${cyan}--windsurf${reset}                Install for Windsurf only\n    ${cyan}--augment${reset}                 Install for Augment only\n    ${cyan}--trae${reset}                    Install for Trae only\n    ${cyan}--qwen${reset}                    Install for Qwen Code only\n    ${cyan}--hermes${reset}                  Install for Hermes Agent only\n    ${cyan}--pi${reset}                      Install for Pi only\n    ${cyan}--cline${reset}                   Install for Cline only\n    ${cyan}--codebuddy${reset}              Install for CodeBuddy only\n    ${cyan}--all${reset}                     Install for all runtimes\n    ${cyan}-u, --uninstall${reset}           Uninstall GSD (remove all GSD files)\n    ${cyan}-c, --config-dir <path>${reset}   Specify custom config directory\n    ${cyan}-h, --help${reset}                Show this help message\n    ${cyan}--force-statusline${reset}        Replace existing statusline config\n    ${cyan}--portable-hooks${reset}          Emit \$HOME-relative hook paths in settings.json\n                              (for WSL/Docker bind-mount setups; also GSD_PORTABLE_HOOKS=1)\n    ${cyan}--minimal${reset}                 Install only the main-loop skills (new-project,\n                              discuss-phase, plan-phase, execute-phase, help, update)\n                              and zero gsd-* subagents. Cuts cold-start system-prompt\n                              overhead from ~12k tokens to ~700 — useful for local LLMs\n                              with 32K–128K context. Re-run \`gsd update\` (without --minimal)\n                              to expand to the full surface. Alias: --core-only.\n\n  ${yellow}Examples:${reset}\n    ${dim}# Interactive install (prompts for runtime and location)${reset}\n    npx get-shit-done-cc\n\n    ${dim}# Install for Claude Code globally${reset}\n    npx get-shit-done-cc --claude --global\n\n    ${dim}# Install for Gemini globally${reset}\n    npx get-shit-done-cc --gemini --global\n\n    ${dim}# Install for Kilo globally${reset}\n    npx get-shit-done-cc --kilo --global\n\n    ${dim}# Install for Codex globally${reset}\n    npx get-shit-done-cc --codex --global\n\n    ${dim}# Install for Copilot globally${reset}\n    npx get-shit-done-cc --copilot --global\n\n    ${dim}# Install for Copilot locally${reset}\n    npx get-shit-done-cc --copilot --local\n\n    ${dim}# Install for Antigravity globally${reset}\n    npx get-shit-done-cc --antigravity --global\n\n    ${dim}# Install for Antigravity locally${reset}\n    npx get-shit-done-cc --antigravity --local\n\n    ${dim}# Install for Cursor globally${reset}\n    npx get-shit-done-cc --cursor --global\n\n    ${dim}# Install for Cursor locally${reset}\n    npx get-shit-done-cc --cursor --local\n\n    ${dim}# Install for Windsurf globally${reset}\n    npx get-shit-done-cc --windsurf --global\n\n    ${dim}# Install for Windsurf locally${reset}\n    npx get-shit-done-cc --windsurf --local\n\n    ${dim}# Install for Augment globally${reset}\n    npx get-shit-done-cc --augment --global\n\n    ${dim}# Install for Augment locally${reset}\n    npx get-shit-done-cc --augment --local\n\n    ${dim}# Install for Trae globally${reset}\n    npx get-shit-done-cc --trae --global\n\n    ${dim}# Install for Trae locally${reset}\n    npx get-shit-done-cc --trae --local\n\n    ${dim}# Install for Hermes Agent globally${reset}\n    npx get-shit-done-cc --hermes --global\n\n    ${dim}# Install for Hermes Agent locally${reset}\n    npx get-shit-done-cc --hermes --local\n\n    ${dim}# Install for Pi globally${reset}\n    npx get-shit-done-cc --pi --global\n\n    ${dim}# Install for Pi locally${reset}\n    npx get-shit-done-cc --pi --local\n\n    ${dim}# Install for Cline locally${reset}\n    npx get-shit-done-cc --cline --local\n\n    ${dim}# Install for CodeBuddy globally${reset}\n    npx get-shit-done-cc --codebuddy --global\n\n    ${dim}# Install for CodeBuddy locally${reset}\n    npx get-shit-done-cc --codebuddy --local\n\n    ${dim}# Install for all runtimes globally${reset}\n    npx get-shit-done-cc --all --global\n\n    ${dim}# Install to custom config directory${reset}\n    npx get-shit-done-cc --kilo --global --config-dir ~/.kilo-work\n\n    ${dim}# Install to current project only${reset}\n    npx get-shit-done-cc --claude --local\n\n    ${dim}# Uninstall GSD from Cursor globally${reset}\n    npx get-shit-done-cc --cursor --global --uninstall\n\n  ${yellow}Notes:${reset}\n    The --config-dir option is useful when you have multiple configurations.\n    It takes priority over CLAUDE_CONFIG_DIR / OPENCODE_CONFIG_DIR / GEMINI_CONFIG_DIR / KILO_CONFIG_DIR / CODEX_HOME / COPILOT_CONFIG_DIR / ANTIGRAVITY_CONFIG_DIR / CURSOR_CONFIG_DIR / WINDSURF_CONFIG_DIR / AUGMENT_CONFIG_DIR / TRAE_CONFIG_DIR / QWEN_CONFIG_DIR / HERMES_HOME / PI_AGENT_HOME / PI_CONFIG_DIR / CLINE_CONFIG_DIR / CODEBUDDY_CONFIG_DIR environment variables.\n`);
   process.exit(0);
 }
 
@@ -1096,7 +1114,7 @@ function _readGsdConfigFile(absPath, label) {
  * null when `model_profile` is `inherit` so the literal alias passes through
  * unchanged.
  *
- * Returns { runtime, resolve(agentName) -> { model, reasoning_effort? } | null }
+ * Returns { runtime, resolve(agentName) -> { model, reasoning_effort?, thinking? } | null }
  */
 function readGsdRuntimeProfileResolver(targetDir = null) {
   const homeDefaults = _readGsdConfigFile(
@@ -1520,10 +1538,13 @@ function convertClaudeCommandToClaudeSkill(content, skillName, runtime = null) {
   const argumentHint = extractFrontmatterField(frontmatter, 'argument-hint');
   const agent = extractFrontmatterField(frontmatter, 'agent');
 
-  // Preserve allowed-tools as YAML multiline list (Claude native format)
+  // Preserve allowed-tools as YAML multiline list (Claude native format).
+  // Pi implements the Agent Skills standard, where allowed-tools is currently
+  // an experimental space-delimited scalar; omit the Claude-specific list to
+  // avoid loader warnings while keeping tool use governed by Pi itself.
   const toolsMatch = frontmatter.match(/^allowed-tools:\s*\n((?:\s+-\s+.+\n?)*)/m);
   let toolsBlock = '';
-  if (toolsMatch) {
+  if (toolsMatch && runtime !== 'pi') {
     toolsBlock = 'allowed-tools:\n' + toolsMatch[1];
     // Ensure trailing newline
     if (!toolsBlock.endsWith('\n')) toolsBlock += '\n';
@@ -1542,6 +1563,28 @@ function convertClaudeCommandToClaudeSkill(content, skillName, runtime = null) {
   fm += '---';
 
   return `${fm}\n${body}`;
+}
+
+function getPiSubagentsSkillAdapterHeader() {
+  return `<pi_subagents_adapter>
+Pi runtime adapter for GSD workflows:
+
+- pi-subagents is optional. If the \`subagent\` tool is unavailable, do not fail the workflow; follow the workflow's existing sequential/inline fallback path.
+- Single Claude-style \`Agent(subagent_type="x", prompt="y")\` calls map to \`subagent({ agent: "x", task: "y", context: "fresh" })\`.
+- If the workflow has only a model string, the installed Pi agent frontmatter supplies model/thinking defaults. If you need fresh config at dispatch time, call \`gsd-sdk query resolve-model <agent>\`; its JSON may include \`model\` and \`thinking\`.
+- Include \`model\` and \`thinking\` in the \`subagent(...)\` call only when the workflow/config resolved explicit values. Omit model-like fields for \`inherit\`, empty, or missing values.
+- \`run_in_background=true\` maps to \`async: true\`. Poll async work with \`subagent({ action: "status", id: "<run-id>" })\`.
+- \`TaskOutput\` polling maps to \`subagent({ action: "status", id: "<run-id>" })\`; for grouped runs, inspect each child result in that status output before continuing.
+- Parallel GSD waves should use pi-subagents grouped tasks only when the \`subagent\` tool is available, project parallelization is enabled, and worktrees are enabled. Use \`subagent({ tasks: [{ agent: "gsd-executor", task: "..." }], context: "fresh", worktree: true })\` for isolated parallel execution.
+- When worktrees are disabled or a plan must run on the main worktree, dispatch one task at a time or execute inline exactly as the workflow's sequential fallback says.
+- Child agents must not recursively delegate. Installed GSD Pi agents set \`maxSubagentDepth: 0\`; respect that boundary.
+</pi_subagents_adapter>`;
+}
+
+function injectPiSubagentsSkillAdapter(content) {
+  if (!content || content.includes('<pi_subagents_adapter>')) return content;
+  const adapter = getPiSubagentsSkillAdapterHeader();
+  return `${content.trimEnd()}\n\n${adapter}\n`;
 }
 
 /**
@@ -2394,6 +2437,47 @@ purpose: ${toSingleLine(description)}
   const cleanFrontmatter = `---\nname: ${yamlQuote(name)}\ndescription: ${yamlQuote(toSingleLine(description))}\n---`;
 
   return `${cleanFrontmatter}\n\n${roleHeader}\n${body}`;
+}
+
+/**
+ * Convert Claude Code agent markdown to a pi-subagents custom agent.
+ *
+ * Pi-subagents discovers agents from nested Markdown files under .pi/agents/
+ * and ~/.pi/agent/agents/. It accepts narrow frontmatter with model,
+ * thinking, context, inheritance, and delegation-depth controls. We omit tools
+ * by default so child Pi sessions receive Pi's normal builtin tool surface.
+ */
+function convertClaudeAgentToPiSubagentAgent(content, opts = {}) {
+  let converted = content;
+  converted = converted.replace(/CLAUDE\.md/g, 'AGENTS.md');
+  converted = converted.replace(/\bClaude Code\b/g, 'Pi');
+  converted = converted.replace(/~\/\.claude\//g, '~/.pi/agent/');
+  converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.pi/agent/');
+  converted = converted.replace(/~\/\.claude\b/g, '~/.pi/agent');
+  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.pi/agent');
+  converted = converted.replace(/\.claude\//g, '.pi/');
+
+  const { frontmatter, body } = extractFrontmatterAndBody(converted);
+  if (!frontmatter) return converted;
+
+  const name = extractFrontmatterField(frontmatter, 'name') || 'unknown';
+  const description = extractFrontmatterField(frontmatter, 'description') || '';
+
+  const lines = [
+    '---',
+    `name: ${yamlIdentifier(name)}`,
+    `description: ${yamlQuote(toSingleLine(description))}`,
+    'systemPromptMode: append',
+    'inheritProjectContext: true',
+    'inheritSkills: false',
+    'defaultContext: fresh',
+    'maxSubagentDepth: 0',
+  ];
+  if (opts.model) lines.push(`model: ${yamlQuote(opts.model)}`);
+  if (opts.thinking) lines.push(`thinking: ${yamlQuote(opts.thinking)}`);
+  lines.push('---');
+
+  return `${lines.join('\n')}\n${body}`;
 }
 
 /**
@@ -5791,6 +5875,9 @@ function copyCommandsAsClaudeSkills(srcDir, skillsDir, prefix, pathPrefix, runti
       content = content.replace(/~\/\.hermes\//g, pathPrefix);
       content = content.replace(/\$HOME\/\.hermes\//g, pathPrefix);
       content = content.replace(/\.\/\.hermes\//g, `./${getDirName(runtime)}/`);
+      content = content.replace(/~\/\.pi\/agent\//g, pathPrefix);
+      content = content.replace(/\$HOME\/\.pi\/agent\//g, pathPrefix);
+      content = content.replace(/\.\/\.pi\//g, `./${getDirName(runtime)}/`);
       // Qwen reuses Claude skill format but needs runtime-specific content replacement
       if (runtime === 'qwen') {
         content = content.replace(/CLAUDE\.md/g, 'QWEN.md');
@@ -5803,8 +5890,18 @@ function copyCommandsAsClaudeSkills(srcDir, skillsDir, prefix, pathPrefix, runti
         content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
         content = content.replace(/\.claude\//g, '.hermes/');
       }
+      // Pi uses the Agent Skills standard and loads AGENTS.md as its native
+      // project instruction file; keep the skill body on Pi vocabulary.
+      if (runtime === 'pi') {
+        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
+        content = content.replace(/\bClaude Code\b/g, 'Pi');
+        content = content.replace(/\.claude\//g, '.pi/');
+      }
       content = processAttribution(content, getCommitAttribution(runtime));
       content = convertClaudeCommandToClaudeSkill(content, skillName, runtime);
+      if (runtime === 'pi') {
+        content = injectPiSubagentsSkillAdapter(content);
+      }
 
       fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content);
     }
@@ -5998,6 +6095,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
   const isTrae = runtime === 'trae';
   const isQwen = runtime === 'qwen';
   const isHermes = runtime === 'hermes';
+  const isPi = runtime === 'pi';
   const isCline = runtime === 'cline';
   const dirName = getDirName(runtime);
 
@@ -6032,6 +6130,9 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         content = content.replace(/~\/\.hermes\//g, pathPrefix);
         content = content.replace(/\$HOME\/\.hermes\//g, pathPrefix);
         content = content.replace(/\.\/\.hermes\//g, `./${dirName}/`);
+        content = content.replace(/~\/\.pi\/agent\//g, pathPrefix);
+        content = content.replace(/\$HOME\/\.pi\/agent\//g, pathPrefix);
+        content = content.replace(/\.\/\.pi\//g, `./${dirName}/`);
       }
       content = processAttribution(content, getCommitAttribution(runtime));
 
@@ -6078,6 +6179,11 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
         content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
         content = content.replace(/\.claude\//g, '.hermes/');
+        fs.writeFileSync(destPath, content);
+      } else if (isPi) {
+        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
+        content = content.replace(/\bClaude Code\b/g, 'Pi');
+        content = content.replace(/\.claude\//g, '.pi/');
         fs.writeFileSync(destPath, content);
       } else {
         fs.writeFileSync(destPath, content);
@@ -6136,6 +6242,13 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
       jsContent = jsContent.replace(/\.claude\//g, '.hermes/');
       jsContent = jsContent.replace(/CLAUDE\.md/g, 'HERMES.md');
       jsContent = jsContent.replace(/\bClaude Code\b/g, 'Hermes Agent');
+      fs.writeFileSync(destPath, jsContent);
+    } else if (isPi && (entry.name.endsWith('.cjs') || entry.name.endsWith('.js'))) {
+      let jsContent = fs.readFileSync(srcPath, 'utf8');
+      jsContent = jsContent.replace(/\.claude\/skills\//g, '.pi/skills/');
+      jsContent = jsContent.replace(/\.claude\//g, '.pi/');
+      jsContent = jsContent.replace(/CLAUDE\.md/g, 'AGENTS.md');
+      jsContent = jsContent.replace(/\bClaude Code\b/g, 'Pi');
       fs.writeFileSync(destPath, jsContent);
     } else {
       fs.copyFileSync(srcPath, destPath);
@@ -6298,6 +6411,7 @@ function uninstall(isGlobal, runtime = 'claude') {
   const isTrae = runtime === 'trae';
   const isQwen = runtime === 'qwen';
   const isHermes = runtime === 'hermes';
+  const isPi = runtime === 'pi';
   const isCodebuddy = runtime === 'codebuddy';
   const dirName = getDirName(runtime);
 
@@ -6323,6 +6437,7 @@ function uninstall(isGlobal, runtime = 'claude') {
   if (runtime === 'trae') runtimeLabel = 'Trae';
   if (runtime === 'qwen') runtimeLabel = 'Qwen Code';
   if (runtime === 'hermes') runtimeLabel = 'Hermes Agent';
+  if (runtime === 'pi') runtimeLabel = 'Pi';
   if (runtime === 'codebuddy') runtimeLabel = 'CodeBuddy';
 
   console.log(`  Uninstalling GSD from ${cyan}${runtimeLabel}${reset} at ${cyan}${locationLabel}${reset}\n`);
@@ -6350,8 +6465,8 @@ function uninstall(isGlobal, runtime = 'claude') {
       }
       console.log(`  ${green}✓${reset} Removed GSD commands from command/`);
     }
-  } else if (isCodex || isCursor || isWindsurf || isTrae || isCodebuddy) {
-    // Codex/Cursor/Windsurf/Trae/CodeBuddy: remove skills/gsd-*/SKILL.md skill directories
+  } else if (isCodex || isCursor || isWindsurf || isTrae || isPi || isCodebuddy) {
+    // Codex/Cursor/Windsurf/Trae/Pi/CodeBuddy: remove skills/gsd-*/SKILL.md skill directories
     const skillsDir = path.join(targetDir, 'skills');
     if (fs.existsSync(skillsDir)) {
       let skillCount = 0;
@@ -7551,6 +7666,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
   const isTrae = runtime === 'trae';
   const isQwen = runtime === 'qwen';
   const isHermes = runtime === 'hermes';
+  const isPi = runtime === 'pi';
   const isCodebuddy = runtime === 'codebuddy';
   const isCline = runtime === 'cline';
   const dirName = getDirName(runtime);
@@ -7602,6 +7718,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
   if (isTrae) runtimeLabel = 'Trae';
   if (isQwen) runtimeLabel = 'Qwen Code';
   if (isHermes) runtimeLabel = 'Hermes Agent';
+  if (isPi) runtimeLabel = 'Pi';
   if (isCodebuddy) runtimeLabel = 'CodeBuddy';
   if (isCline) runtimeLabel = 'Cline';
 
@@ -7993,6 +8110,32 @@ function install(isGlobal, runtime = 'claude', options = {}) {
         console.log(`  ${green}✓${reset} Migrated dev-preferences.md → skills/gsd-dev-preferences/SKILL.md (#2973)`);
       }
     }
+  } else if (isPi) {
+    const skillsDir = path.join(targetDir, 'skills');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
+    copyCommandsAsClaudeSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime, isGlobal);
+    if (fs.existsSync(skillsDir)) {
+      const count = fs.readdirSync(skillsDir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && e.name.startsWith('gsd-')).length;
+      if (count > 0) {
+        console.log(`  ${green}✓${reset} Installed ${count} skills to skills/`);
+      } else {
+        failures.push('skills/gsd-*');
+      }
+    } else {
+      failures.push('skills/gsd-*');
+    }
+
+    const legacyCommandsDir = path.join(targetDir, 'commands', 'gsd');
+    if (fs.existsSync(legacyCommandsDir)) {
+      const savedLegacyArtifacts = preserveUserArtifacts(legacyCommandsDir, ['dev-preferences.md']);
+      fs.rmSync(legacyCommandsDir, { recursive: true });
+      console.log(`  ${green}✓${reset} Removed legacy commands/gsd/ directory`);
+      restoreUserArtifacts(legacyCommandsDir, savedLegacyArtifacts);
+      if (migrateLegacyDevPreferencesToSkill(targetDir, savedLegacyArtifacts)) {
+        console.log(`  ${green}✓${reset} Migrated dev-preferences.md → skills/gsd-dev-preferences/SKILL.md (#2973)`);
+      }
+    }
   } else if (isCodebuddy) {
     const skillsDir = path.join(targetDir, 'skills');
     const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
@@ -8268,6 +8411,26 @@ function install(isGlobal, runtime = 'claude', options = {}) {
           content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
           content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
           content = content.replace(/\.claude\//g, '.hermes/');
+        } else if (isPi) {
+          const _piAgentName = entry.name.replace(/\.md$/, '');
+          const _piModelOverrides = readGsdEffectiveModelOverrides(targetDir);
+          const _piRawOverride = _piModelOverrides?.[_piAgentName] || null;
+          let _piTierEntry = null;
+          if (typeof _piRawOverride === 'string') {
+            _piTierEntry = { model: _piRawOverride };
+          } else if (_piRawOverride && typeof _piRawOverride === 'object') {
+            _piTierEntry = _piRawOverride;
+          }
+          if (!_piTierEntry) {
+            const _piRuntimeResolver = readGsdRuntimeProfileResolver(targetDir);
+            if (_piRuntimeResolver && _piRuntimeResolver.runtime === 'pi') {
+              _piTierEntry = _piRuntimeResolver.resolve(_piAgentName);
+            }
+          }
+          content = convertClaudeAgentToPiSubagentAgent(content, {
+            model: _piTierEntry?.model || null,
+            thinking: _piTierEntry?.thinking || null,
+          });
         }
         const destName = isCopilot ? entry.name.replace('.md', '.agent.md') : entry.name;
         fs.writeFileSync(path.join(agentsDest, destName), content);
@@ -8799,6 +8962,13 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
+  if (isPi) {
+    // Pi discovers skills from skills/ directly. Its settings.json schema is
+    // different from Claude Code's hook schema, so the vertical Pi install
+    // slice leaves settings untouched.
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
+  }
+
   if (isCline) {
     // Cline uses .clinerules — generate a rules file with GSD system instructions
     const clinerulesDest = path.join(targetDir, '.clinerules');
@@ -9212,8 +9382,9 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   const isWindsurf = runtime === 'windsurf';
   const isTrae = runtime === 'trae';
   const isCline = runtime === 'cline';
+  const isPi = runtime === 'pi';
 
-  if (shouldInstallStatusline && !isOpencode && !isKilo && !isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae) {
+  if (shouldInstallStatusline && !isOpencode && !isKilo && !isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isPi) {
     if (!isGlobal && !forceStatusline) {
       // Local installs skip statusLine by default: repo settings.json takes precedence over
       // profile-level settings.json in Claude Code, so writing here would silently clobber
@@ -9239,7 +9410,7 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   // settings.json hooks block — opencode/kilo/codex/cursor/windsurf/trae/
   // cline either lack the surface or use a different config schema.
   const { shouldInstallBanner, bannerCommand } = bannerOpts;
-  if (shouldInstallBanner && settings && !isOpencode && !isKilo && !isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  if (shouldInstallBanner && settings && !isOpencode && !isKilo && !isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline && !isPi) {
     if (!bannerCommand) {
       console.warn(`  ${yellow}⚠${reset}  Skipped update banner registration — Node executable path unavailable. See #2979 / #3002.`);
     } else {
@@ -9271,7 +9442,7 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   // {type: 'command', command: null} items that the runtime hook schema
   // rejects at parse time. validateHookFields filters those out so the file
   // we write is always schema-valid.
-  if (!isCodex && !isCopilot && !isKilo && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  if (!isCodex && !isCopilot && !isKilo && !isCursor && !isWindsurf && !isTrae && !isCline && !isPi) {
     writeSettings(settingsPath, validateHookFields(settings));
   }
 
@@ -9320,6 +9491,7 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   if (runtime === 'cline') program = 'Cline';
   if (runtime === 'qwen') program = 'Qwen Code';
   if (runtime === 'hermes') program = 'Hermes Agent';
+  if (runtime === 'pi') program = 'Pi';
 
   let command = '/gsd-new-project';
   if (runtime === 'opencode') command = '/gsd-new-project';
@@ -9335,6 +9507,7 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   if (runtime === 'cline') command = '/gsd-new-project';
   if (runtime === 'qwen') command = '/gsd-new-project';
   if (runtime === 'hermes') command = '/gsd-new-project';
+  if (runtime === 'pi') command = '/skill:gsd-new-project';
 
   // Claude Code global installs use the skills/ format (CC 2.1.88+).
   // Restart is required for CC to pick up newly-installed skills, and the
@@ -9427,12 +9600,13 @@ const runtimeMap = {
   '10': 'hermes',
   '11': 'kilo',
   '12': 'opencode',
-  '13': 'qwen',
-  '14': 'trae',
-  '15': 'windsurf'
+  '13': 'pi',
+  '14': 'qwen',
+  '15': 'trae',
+  '16': 'windsurf'
 };
-const allRuntimes = ['claude', 'antigravity', 'augment', 'cline', 'codebuddy', 'codex', 'copilot', 'cursor', 'gemini', 'hermes', 'kilo', 'opencode', 'qwen', 'trae', 'windsurf'];
-const ALL_RUNTIMES_OPTION = '16';
+const allRuntimes = ['claude', 'antigravity', 'augment', 'cline', 'codebuddy', 'codex', 'copilot', 'cursor', 'gemini', 'hermes', 'kilo', 'opencode', 'pi', 'qwen', 'trae', 'windsurf'];
+const ALL_RUNTIMES_OPTION = '17';
 
 /**
  * Build the runtime-selection prompt text shown by the interactive installer.
@@ -9452,10 +9626,11 @@ function buildRuntimePromptText() {
   ${cyan}10${reset}) Hermes Agent ${dim}(~/.hermes)${reset}
   ${cyan}11${reset}) Kilo         ${dim}(~/.config/kilo)${reset}
   ${cyan}12${reset}) OpenCode     ${dim}(~/.config/opencode)${reset}
-  ${cyan}13${reset}) Qwen Code    ${dim}(~/.qwen)${reset}
-  ${cyan}14${reset}) Trae         ${dim}(~/.trae)${reset}
-  ${cyan}15${reset}) Windsurf     ${dim}(~/.codeium/windsurf)${reset}
-  ${cyan}16${reset}) All
+  ${cyan}13${reset}) Pi           ${dim}(~/.pi/agent)${reset}
+  ${cyan}14${reset}) Qwen Code    ${dim}(~/.qwen)${reset}
+  ${cyan}15${reset}) Trae         ${dim}(~/.trae)${reset}
+  ${cyan}16${reset}) Windsurf     ${dim}(~/.codeium/windsurf)${reset}
+  ${cyan}17${reset}) All
 
   ${dim}Select multiple: 1,2,6 or 1 2 6${reset}
 `;
@@ -9466,14 +9641,14 @@ function buildRuntimePromptText() {
  * Pure function — exported so tests can verify split/dedupe/fallback behavior.
  *  - Accepts comma- and/or whitespace-separated choices
  *  - Deduplicates while preserving order
- *  - Maps option 16 ("All") to every runtime
+ *  - Maps option 17 ("All") to every runtime
  *  - Falls back to ['claude'] when nothing valid is selected
  */
 function parseRuntimeInput(answer) {
   const input = (answer == null ? '' : String(answer)).trim() || '1';
 
   // Tokenize first so the all-runtimes shortcut also fires for inputs the
-  // prompt encourages — "16,", "16 1", etc. — not just the bare "16".
+  // prompt encourages — "17,", "17 1", etc. — not just the bare "17".
   const choices = input.split(/[\s,]+/).filter(Boolean);
   if (choices.includes(ALL_RUNTIMES_OPTION)) {
     return allRuntimes.slice();
@@ -10773,6 +10948,9 @@ if (process.env.GSD_TEST_MODE) {
     convertClaudeAgentToAntigravityAgent,
     copyCommandsAsAntigravitySkills,
     convertClaudeCommandToClaudeSkill,
+    getPiSubagentsSkillAdapterHeader,
+    injectPiSubagentsSkillAdapter,
+    convertClaudeAgentToPiSubagentAgent,
     skillFrontmatterName,
     copyCommandsAsClaudeSkills,
     convertClaudeToWindsurfMarkdown,

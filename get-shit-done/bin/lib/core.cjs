@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execSync, execFileSync, spawnSync } = require('child_process');
 const { MODEL_PROFILES, AGENT_TO_PHASE_TYPE, VALID_PHASE_TYPES, AGENT_DEFAULT_TIERS, VALID_AGENT_TIERS, nextTier } = require('./model-profiles.cjs');
-const { MODEL_ALIAS_MAP, RUNTIME_PROFILE_MAP, KNOWN_RUNTIMES, RUNTIMES_WITH_REASONING_EFFORT } = require('./model-catalog.cjs');
+const { MODEL_ALIAS_MAP, RUNTIME_PROFILE_MAP, KNOWN_RUNTIMES, RUNTIMES_WITH_REASONING_EFFORT, RUNTIMES_WITH_THINKING } = require('./model-catalog.cjs');
 const {
   resolveWorktreeContext,
   parseWorktreePorcelain: parseWorktreePorcelainPolicy,
@@ -1368,7 +1368,7 @@ function _resetRuntimeWarningCacheForTests() {
  *   - tier:    'opus' | 'sonnet' | 'haiku'
  *   - overrides: optional `model_profile_overrides` blob (may be null/undefined)
  *
- * Returns `{ model: string, reasoning_effort?: string } | null`.
+ * Returns `{ model: string, reasoning_effort?: string, thinking?: string } | null`.
  */
 function resolveTierEntry({ runtime, tier, overrides }) {
   if (!runtime || !tier) return null;
@@ -1638,6 +1638,41 @@ function resolveReasoningEffortInternal(cwd, agentType) {
 
   const entry = _resolveRuntimeTier(config, tier);
   return entry?.reasoning_effort || null;
+}
+
+/**
+ * Resolve runtime-specific thinking level for an agent.
+ *
+ * This mirrors resolveReasoningEffortInternal but uses the generic `thinking`
+ * field carried by runtimes such as Pi/pi-subagents. It stays allowlisted so a
+ * typo runtime plus a user override cannot leak unsupported fields into other
+ * runtime adapters.
+ */
+function resolveThinkingLevelInternal(cwd, agentType) {
+  const config = loadConfig(cwd);
+  if (!config.runtime) return null;
+  if (!RUNTIMES_WITH_THINKING.has(config.runtime)) return null;
+  if (config.model_overrides?.[agentType]) return null;
+
+  const profile = String(config.model_profile || 'balanced').toLowerCase();
+  const agentModels = MODEL_PROFILES[agentType];
+  if (!agentModels) return null;
+
+  const phaseType = AGENT_TO_PHASE_TYPE[agentType];
+  const phaseTypeTier = (phaseType && config.models && typeof config.models === 'object')
+    ? config.models[phaseType]
+    : undefined;
+  if (phaseTypeTier === 'inherit') return null;
+  const VALID_TIERS = new Set(['opus', 'sonnet', 'haiku']);
+  const tier = (phaseTypeTier && VALID_TIERS.has(phaseTypeTier))
+    ? phaseTypeTier
+    : (profile === 'inherit'
+      ? 'inherit'
+      : (agentModels[profile] || agentModels['balanced']));
+  if (!tier || tier === 'inherit') return null;
+
+  const entry = _resolveRuntimeTier(config, tier);
+  return entry?.thinking || null;
 }
 
 // ─── Summary body helpers ─────────────────────────────────────────────────
@@ -1994,8 +2029,10 @@ module.exports = {
   resolveModelInternal,
   resolveModelForTier,
   resolveReasoningEffortInternal,
+  resolveThinkingLevelInternal,
   RUNTIME_PROFILE_MAP,
   RUNTIMES_WITH_REASONING_EFFORT,
+  RUNTIMES_WITH_THINKING,
   KNOWN_RUNTIMES,
   RUNTIME_OVERRIDE_TIERS,
   resolveTierEntry,

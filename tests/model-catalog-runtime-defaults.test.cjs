@@ -49,6 +49,14 @@ describe('model catalog runtime defaults parity (#3229)', () => {
     }
   });
 
+  test('Pi defaults carry openai-codex models and thinking levels', () => {
+    assert.deepStrictEqual(catalog.runtimeTierDefaults.pi, {
+      opus: { model: 'openai-codex/gpt-5.5', thinking: 'high' },
+      sonnet: { model: 'openai-codex/gpt-5.3-codex', thinking: 'medium' },
+      haiku: { model: 'openai-codex/gpt-5.4-mini', thinking: 'low' },
+    });
+  });
+
   test('Group B runtimes remain documented as having no built-in defaults', () => {
     const groupB = Object.keys(catalog.runtimeTierDefaults)
       .filter(runtime => !catalog.runtimeTierDefaults[runtime].opus);

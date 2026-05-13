@@ -95,6 +95,12 @@ function getGlobalConfigDir(runtime) {
     case 'hermes':
       return env.HERMES_HOME ? expandTilde(env.HERMES_HOME) : path.join(home, '.hermes');
 
+    // ── Pi Coding Agent ──────────────────────────────────────────────────────
+    case 'pi':
+      if (env.PI_AGENT_HOME) return expandTilde(env.PI_AGENT_HOME);
+      if (env.PI_CONFIG_DIR) return expandTilde(env.PI_CONFIG_DIR);
+      return path.join(home, '.pi', 'agent');
+
     // ── CodeBuddy ────────────────────────────────────────────────────────────
     case 'codebuddy':
       return env.CODEBUDDY_CONFIG_DIR ? expandTilde(env.CODEBUDDY_CONFIG_DIR) : path.join(home, '.codebuddy');
