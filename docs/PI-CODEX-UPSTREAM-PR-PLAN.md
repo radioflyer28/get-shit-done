@@ -112,6 +112,9 @@ Draft Feature Request outline:
 
 Purpose: make GSD skills prompt and use existing Codex parallel subagent tools consistently with the Claude runtime behavior, while preserving Codex's explicit-authorization requirement.
 
+Feature Request: #3475
+Draft issue file: `docs/CODEX-PARALLEL-SUBAGENT-RUNTIME-UPDATES-ISSUE-DRAFT.md`
+
 Scope:
 
 - Add Codex runtime guidance for explicit parallel subagent prompting.
