@@ -52,6 +52,7 @@ Scope:
 
 - Preserve existing Codex `reasoning_effort` resolution and allowlist behavior.
 - Extend `gsd-sdk query resolve-model` / command query output to include `reasoning_effort` when resolved for the selected runtime.
+- Ensure GSD model profiles, phase-type model maps, dynamic routing, and per-agent overrides can resolve both model ID and `reasoning_effort`, so workflows like plan-phase and execute-phase inherit task-tailored reasoning levels from the central model policy.
 - Update runtime adapters that translate GSD `Agent()`/`Task()` calls to pass `reasoning_effort` into child-agent launch calls only when the runtime supports it.
 - Keep Pi thinking as Pi-native launch/runtime behavior, not a new generic GSD catalog field unless maintainers explicitly request that abstraction.
 - Add regression tests that resolved model and reasoning effort derive from the same tier source and are both available to launch adapters.
@@ -63,12 +64,13 @@ Out of scope:
 - Codex parallel subagent workflow changes.
 - Broad model-selection redesign.
 - Adding `thinking` as a generic model-catalog field unless a maintainer asks for it.
+- Hardcoded one-off `reasoning_effort` literals directly in individual workflow prose; effort levels should remain centralized in model profiles, phase-type maps, dynamic routing, or per-agent overrides.
 
 Draft Feature Request outline:
 
 - Problem: GSD can resolve Codex `reasoning_effort`, but upstream launch/query paths do not consistently expose or pass that effort when starting child agents/subagents.
-- Addition: expose resolved `reasoning_effort` alongside resolved model IDs and teach runtime launch adapters to pass it only for runtimes that support it.
-- Acceptance: Codex model and reasoning effort still resolve from the same profile/phase/dynamic-routing tier, unknown runtimes cannot receive effort by override leakage, and launch adapter text/tests show effort is passed when supported.
+- Addition: expose resolved `reasoning_effort` alongside resolved model IDs, keep task-tailored reasoning levels in central model policy, and teach runtime launch adapters to pass the resolved effort only for runtimes that support it.
+- Acceptance: Codex model and reasoning effort still resolve from the same profile/phase/dynamic-routing/per-agent policy source, unknown runtimes cannot receive effort by override leakage, and launch adapter text/tests show effort is passed when supported.
 - Maintenance burden: low; this uses the existing resolver/model-catalog seam created by #3230 and avoids a new model configuration surface.
 - Prior-art note: reference #2517, #2612, #3023, and #3230 as existing model work; this issue only closes the transport gap between resolution and subagent launch.
 
