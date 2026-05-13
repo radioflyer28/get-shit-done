@@ -86,6 +86,8 @@ Out of scope:
 
 ## PR Preparation Checklist
 
+- [ ] Draft issue text locally for review before creating GitHub issues.
+- [ ] Draft PR bodies locally for review before opening GitHub PRs.
 - [ ] Create three Feature Request issues with complete specs.
 - [ ] Wait for `approved-feature` labels.
 - [ ] Split changes into focused branches.
@@ -128,3 +130,4 @@ Before every PR:
 - The branch already contains Pi runtime work, model-selection changes, Codex model refresh, and Codex parallel subagent changes.
 - `tests/codex-parallel-subagents.test.cjs` must use the accepted lint annotation `source-text-is-the-product`.
 - Changesets should be created after the branches are split so each PR gets only the fragment that describes its user-facing change.
+- Do not submit GitHub issues or PRs until the draft issue text and PR bodies have been reviewed.
