@@ -2397,14 +2397,14 @@ Execute mode fallback:
   (c) the workflow's documented contract says defaults are safe (e.g. autonomous lifecycle paths).
 - Do NOT write workflow artifacts (CONTEXT.md, DISCUSSION-LOG.md, PLAN.md, checkpoint files) until the user has answered the plain-text questions or one of (a)-(c) above applies. Surfacing the questions and waiting is the correct response — silently defaulting and writing artifacts is the #3018 failure mode.
 
-## C. Task()/Agent() → spawn_agent Mapping
-GSD workflows use \`Task(...)\` and \`Agent(...)\` (Claude Code syntax). Translate both to Codex collaboration tools:
+## C. Agent()/Task() → spawn_agent Mapping
+GSD workflows use \`Agent(...)\` or legacy \`Task(...)\` (Claude Code syntax). Translate both forms to Codex collaboration tools:
 
 Direct mapping:
-- \`Task(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
 - \`Agent(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
+- \`Task(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
 - \`run_in_background=true\` → spawn all independent agents first, then collect them with \`wait_agent([...])\`
-- \`Task(model="...")\` / \`Agent(model="...")\` → pass \`model="..."\` to \`spawn_agent\`
+- \`Agent(model="...")\` / \`Task(model="...")\` → pass \`model="..."\` to \`spawn_agent\`
 - \`reasoning_effort="low|medium|high|xhigh"\` → pass \`reasoning_effort\` to \`spawn_agent\`
   when present. If a workflow does not provide inline model settings, rely on
   the resolved per-agent model embedded in the installed agent \`.toml\`.
@@ -2414,21 +2414,25 @@ Direct mapping:
   Workflows that require this isolation must fail closed or use an explicit
   manual worktree protocol before spawning (#3360).
 
-Spawn restriction:
-- Codex restricts \`spawn_agent\` to cases where the user has explicitly
-  requested sub-agents. When automatic spawning is not permitted, do the
-  work inline in the current agent rather than attempting to force a spawn.
-- Treat explicit workflow flags such as \`--parallel\`, user phrases like
-  "use parallel subagents" / "spawn subagents", or an affirmative answer to a
-  workflow prompt asking whether to use parallel subagents as authorization for
-  the current skill invocation only.
-- If a workflow has meaningful independent fan-out and Codex subagents are
-  available, proactively ask whether to use parallel subagents unless the user
-  already supplied \`--parallel\`, \`--no-parallel\`, or equivalent language.
-  Do not spawn until the user confirms.
+Capability detection:
+- When a workflow asks whether the \`Agent\` tool is available, treat Codex
+  \`spawn_agent\` as the equivalent subagent capability. Do NOT choose a
+  sequential fallback merely because the literal Claude Code \`Agent\` tool
+  name is absent.
+- A user invoking a GSD workflow that explicitly declares parallel agent fan-out
+  counts as the explicit request for those workflow-owned subagents. Do NOT
+  require a separate Codex-only \`--parallel\` flag.
+- Respect GSD config: when workflow init/context says \`parallelization\` is
+  \`false\`, follow the workflow's sequential path. When \`parallelization\`
+  is true or absent and the workflow says to use parallel agents, use
+  \`spawn_agent\` rather than doing the work inline.
 
 Parallel fan-out:
-- Spawn multiple agents → collect agent IDs → \`wait_agent([...])\` for all to complete
+- \`Agent(..., run_in_background=true)\` / \`Task(..., run_in_background=true)\`
+  → \`spawn_agent(...)\`, collect agent IDs, then \`wait_agent([...])\` for all to complete.
+- After spawning a background wave, do NOT perform the delegated work inline
+  while subagents are running. Wait for the spawned agents and synthesize their
+  returned/file outputs.
 
 Result parsing:
 - Look for structured markers in agent output: \`CHECKPOINT\`, \`PLAN COMPLETE\`, \`SUMMARY\`, etc.

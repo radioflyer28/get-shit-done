@@ -109,7 +109,7 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('</codex_skill_adapter>'), 'has closing tag');
     assert.ok(result.includes('## A. Skill Invocation'), 'has section A');
     assert.ok(result.includes('## B. AskUserQuestion'), 'has section B');
-    assert.ok(result.includes('## C. Task()/Agent() → spawn_agent'), 'has section C');
+    assert.ok(result.includes('## C. Agent()/Task() → spawn_agent'), 'has section C');
   });
 
   test('includes correct invocation syntax', () => {
@@ -129,17 +129,54 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('Execute mode'), 'documents Execute mode fallback');
   });
 
-  test('section C maps Task to spawn_agent', () => {
+  test('section C maps Agent and Task to spawn_agent', () => {
     const result = getCodexSkillAdapterHeader('gsd-execute-phase');
     assert.ok(result.includes('spawn_agent'), 'maps to spawn_agent');
+    assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent syntax');
+    assert.ok(result.includes('Task(subagent_type="X", prompt="Y")'), 'maps Task syntax');
     assert.ok(result.includes('agent_type'), 'maps subagent_type to agent_type');
     assert.ok(result.includes('fork_context'), 'documents fork_context default');
     assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent to spawn_agent');
     assert.ok(result.includes('run_in_background=true'), 'documents background fan-out');
     assert.ok(result.includes('wait_agent([...])'), 'documents parallel wait pattern');
-    assert.ok(result.includes('--parallel'), 'documents explicit subagent authorization flag');
+    assert.ok(result.includes('require a separate Codex-only'), 'does not require Codex-only parallel flag');
     assert.ok(result.includes('close_agent'), 'documents close_agent cleanup');
     assert.ok(result.includes('CHECKPOINT'), 'documents result markers');
+  });
+
+  test('section C treats Codex spawn_agent as Agent-compatible parallel capability', () => {
+    const result = getCodexSkillAdapterHeader('gsd-map-codebase');
+    assert.ok(result.includes('treat Codex'), 'documents Codex capability equivalence');
+    assert.ok(result.includes('spawn_agent'), 'uses spawn_agent');
+    assert.ok(result.includes('equivalent subagent capability'), 'maps detection to subagent capability');
+    assert.ok(result.includes('explicit request'), 'treats workflow fan-out as explicit authorization');
+    assert.ok(result.includes('run_in_background=true'), 'documents background fan-out mapping');
+    assert.ok(result.includes('do NOT perform the delegated work inline'), 'prevents inline duplicate work');
+    assert.ok(result.includes('parallelization'), 'respects GSD parallelization setting');
+  });
+
+  test('adapter contract covers workflows that declare background Agent fan-out', () => {
+    const workflowsDir = path.join(__dirname, '..', 'get-shit-done', 'workflows');
+    const workflowFiles = fs.readdirSync(workflowsDir)
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => path.join(workflowsDir, name));
+    const backgroundAgentWorkflows = workflowFiles.filter((file) => {
+      const content = fs.readFileSync(file, 'utf8');
+      return content.includes('Agent(') && content.includes('run_in_background=true');
+    });
+
+    assert.ok(backgroundAgentWorkflows.length > 0, 'expected workflows with background Agent fan-out');
+
+    const adapter = getCodexSkillAdapterHeader('gsd-map-codebase');
+    for (const phrase of [
+      'Agent(subagent_type="X", prompt="Y")',
+      'run_in_background=true',
+      'wait_agent([...])',
+      'do NOT perform the delegated work inline',
+      'parallelization',
+    ]) {
+      assert.ok(adapter.includes(phrase), `adapter must cover ${phrase}`);
+    }
   });
 });
 
