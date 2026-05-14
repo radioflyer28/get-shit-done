@@ -137,7 +137,7 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent to spawn_agent');
     assert.ok(result.includes('run_in_background=true'), 'documents background fan-out');
     assert.ok(result.includes('wait_agent([...])'), 'documents parallel wait pattern');
-    assert.ok(result.includes('--parallel'), 'documents explicit subagent authorization flag');
+    assert.ok(result.includes('use parallel subagents'), 'documents explicit subagent authorization wording');
     assert.ok(result.includes('close_agent'), 'documents close_agent cleanup');
     assert.ok(result.includes('CHECKPOINT'), 'documents result markers');
   });

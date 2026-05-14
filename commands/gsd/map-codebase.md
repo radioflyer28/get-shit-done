@@ -1,7 +1,7 @@
 ---
 name: gsd:map-codebase
 description: Analyze codebase with parallel mapper agents to produce .planning/codebase/ documents
-argument-hint: "[--parallel|--no-parallel] [--fast [--focus tech|arch|quality|concerns]] [--query <term>|status|diff|refresh] [area]"
+argument-hint: "[--fast [--focus tech|arch|quality|concerns]] [--query <term>|status|diff|refresh] [area]"
 allowed-tools:
   - Read
   - Bash
@@ -27,8 +27,6 @@ Output: .planning/codebase/ folder with 7 structured documents about the codebas
 <flags>
 - **--fast**: Lightweight scan mode — spawns one mapper agent instead of four. Accepts an optional `--focus` value: `tech`, `arch`, `quality`, `concerns`, or `tech+arch` (default). Faster and lower-context than the full map.
 - **--query**: Codebase intelligence query mode. Sub-commands: `query <term>`, `status`, `diff`, `refresh`. Requires intel to be enabled in config (`intel.enabled: true`). Runs inline for query/status/diff; spawns an agent for refresh.
-- **--parallel**: Explicitly authorizes Codex to use `spawn_agent` / `wait_agent` for mapper fan-out when those tools are available.
-- **--no-parallel**: Forces sequential inline mapping for this run. In Codex, this also suppresses the parallel subagent prompt.
 - **(no flag)**: Full parallel map — spawns 4 mapper agents to produce all 7 codebase documents.
 </flags>
 
@@ -36,8 +34,6 @@ Output: .planning/codebase/ folder with 7 structured documents about the codebas
 Arguments: $ARGUMENTS
 
 Parse the first token of $ARGUMENTS:
-- If `--parallel` is present anywhere: treat it as explicit Codex subagent authorization and remove it before interpreting focus/path arguments.
-- If `--no-parallel` is present anywhere: force sequential inline mapping for this run and remove it before interpreting focus/path arguments.
 - If it is `--fast`: strip the flag, run the scan workflow (passing remaining args including optional --focus).
 - If it is `--query`: strip the flag, run the intel workflow (passing remaining args as the subcommand).
 - Otherwise: pass all of $ARGUMENTS as focus area to the map-codebase workflow.

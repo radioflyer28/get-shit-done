@@ -2371,14 +2371,18 @@ Spawn restriction:
 - Codex restricts \`spawn_agent\` to cases where the user has explicitly
   requested sub-agents. When automatic spawning is not permitted, do the
   work inline in the current agent rather than attempting to force a spawn.
-- Treat explicit workflow flags such as \`--parallel\`, user phrases like
-  "use parallel subagents" / "spawn subagents", or an affirmative answer to a
-  workflow prompt asking whether to use parallel subagents as authorization for
-  the current skill invocation only.
-- If a workflow has meaningful independent fan-out and Codex subagents are
-  available, proactively ask whether to use parallel subagents unless the user
-  already supplied \`--parallel\`, \`--no-parallel\`, or equivalent language.
-  Do not spawn until the user confirms.
+- Treat user phrases like "use parallel subagents" / "spawn subagents", or an
+  affirmative answer to an adapter prompt, as authorization for the current skill
+  invocation only.
+- If a workflow has meaningful independent fan-out (for example multiple
+  \`Task(..., run_in_background=true)\` / \`Agent(..., run_in_background=true)\`
+  calls) and Codex subagent tools are available, proactively ask whether to use
+  parallel subagents unless the user already supplied equivalent language or
+  explicitly asked to avoid subagents. Do not spawn until the user confirms.
+- When workflow prose says to check whether \`Task\` / \`Agent\` tooling is
+  available, treat Codex \`spawn_agent\` / \`wait_agent\` as satisfying that
+  subagent-delegation requirement after authorization. Do not classify Codex as
+  sequential solely because it lacks Claude's literal \`Task\` or \`Agent\` tool.
 
 Parallel fan-out:
 - Spawn multiple agents → collect agent IDs → \`wait_agent([...])\` for all to complete

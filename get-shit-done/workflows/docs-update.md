@@ -368,32 +368,7 @@ Use --force to regenerate all docs, or re-run in Claude Code to get per-file pro
 After all decisions recorded, continue to detect_runtime_capabilities.
 </step>
 
-<step name="codex_parallel_prompt" condition="Codex spawn_agent and wait_agent are available, documentation queue has more than one independent item, and neither --parallel nor --no-parallel was provided">
-Ask whether to use parallel Codex subagents for this invocation before dispatching
-doc-writer waves.
-
-Use `AskUserQuestion` when available. In Codex, the installed adapter maps this
-to `request_user_input`; if that tool is unavailable, ask as plain text and wait
-for the user's reply.
-
-```text
-This docs update can run independent doc-writer subagents in parallel in Codex.
-Use parallel subagents for this run?
-
-1. Yes - run parallel doc-writer subagents
-2. No - generate docs sequentially inline
-```
-
-If the user chooses Yes: treat that as explicit Codex subagent authorization for
-this invocation, then continue to `dispatch_wave_1`.
-
-If the user chooses No, gives an unclear answer, or asks to avoid subagents:
-continue to `sequential_generation`.
-
-Do not call `spawn_agent` until the user has explicitly confirmed this prompt.
-</step>
-
-<!-- If Task/subagent tooling is unavailable, or Codex parallelism is declined, skip dispatch/collect waves and use sequential_generation instead. -->
+<!-- If Task/subagent tooling is unavailable, or the active runtime adapter cannot use subagents for this invocation, skip dispatch/collect waves and use sequential_generation instead. -->
 
 <step name="dispatch_wave_1" condition="Task tool is available">
 **Read the work manifest first:** `Read .planning/tmp/docs-work-manifest.json` — use `canonical_queue` items with `wave: 1` for this step.
@@ -473,7 +448,7 @@ Write the doc file directly. Return confirmation only — do not return doc cont
 
 **CRITICAL:** Agent prompts must contain ONLY the `<doc_assignment>` block, the `${AGENT_SKILLS}` variable, and the return instruction. Do not include project planning context, workflow prose, or any internal tooling references in agent prompts.
 
-> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling all Wave 1 Agent() calls above with `run_in_background=true`, do NOT generate any documentation independently while the subagents are active. Wait for all Wave 1 agents to complete before proceeding. This prevents duplicate work and wasted context.
+> **ORCHESTRATOR RULE — PARALLEL SUBAGENTS**: After calling all Wave 1 Agent() calls above with `run_in_background=true`, do NOT generate any documentation independently while the subagents are active. Wait for all Wave 1 agents to complete before proceeding. This prevents duplicate work and wasted context.
 
 Continue to collect_wave_1.
 </step>
@@ -692,7 +667,7 @@ Write the doc file directly. Return confirmation only — do not return doc cont
 
 **CRITICAL:** Agent prompts must contain ONLY the `<doc_assignment>` block, the `${AGENT_SKILLS}` variable, and the return instruction. Do not include project planning context, workflow prose, or any internal tooling references in agent prompts.
 
-> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling all Wave 2 Agent() calls above with `run_in_background=true`, do NOT generate any documentation independently while the subagents are active. Wait for all Wave 2 agents to complete before proceeding. This prevents duplicate work and wasted context.
+> **ORCHESTRATOR RULE — PARALLEL SUBAGENTS**: After calling all Wave 2 Agent() calls above with `run_in_background=true`, do NOT generate any documentation independently while the subagents are active. Wait for all Wave 2 agents to complete before proceeding. This prevents duplicate work and wasted context.
 
 Continue to collect_wave_2.
 </step>
@@ -776,7 +751,7 @@ Write {package_dir}/README.md directly. Return confirmation only — do not retu
 )
 ```
 
-> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling all per-package Agent() calls above with `run_in_background=true`, do NOT generate any package READMEs independently while the subagents are active. Wait for all agents to complete via TaskOutput before proceeding. This prevents duplicate work and wasted context.
+> **ORCHESTRATOR RULE — PARALLEL SUBAGENTS**: After calling all per-package Agent() calls above with `run_in_background=true`, do NOT generate any package READMEs independently while the subagents are active. Wait for all agents to complete via TaskOutput before proceeding. This prevents duplicate work and wasted context.
 
 Collect confirmations via TaskOutput for all package agents. Note failures in the final report.
 
@@ -785,10 +760,10 @@ Collect confirmations via TaskOutput for all package agents. Note failures in th
 Continue to commit_docs.
 </step>
 
-<step name="sequential_generation" condition="Task/subagent tool is NOT available, or Codex subagents were declined or not explicitly authorized for this invocation (e.g. Antigravity, Gemini CLI, Copilot, Codex without explicit subagent permission)">
+<step name="sequential_generation" condition="Task/subagent tool is NOT available, or the active runtime adapter cannot use subagents for this invocation (e.g. Antigravity, Gemini CLI, Copilot)">
 **Read the work manifest first:** `Read .planning/tmp/docs-work-manifest.json` — use `canonical_queue` items for generation order. Update `status` after each doc is generated. Write the updated manifest back to disk after all docs are complete.
 
-When the `Task` tool is unavailable, or when Codex `spawn_agent` exists but the user declined or did not explicitly authorize subagents for this invocation, generate docs sequentially in the current context. This step replaces codex_parallel_prompt, dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
+When the `Task` tool is unavailable, or when the active runtime adapter cannot use subagents for this invocation, generate docs sequentially in the current context. This step replaces dispatch_wave_1, collect_wave_1, dispatch_wave_2, and collect_wave_2.
 
 **IMPORTANT:** Do NOT use `browser_subagent`, `Explore`, or any browser-based tool. Use only file system tools (Read, Bash, Write, Grep, Glob, or equivalent tools available in your runtime).
 

@@ -1238,18 +1238,16 @@ The installer auto-configures `resolve_model_ids: "omit"` for Gemini CLI, OpenCo
 
 #### Codex parallel subagents (#3475)
 
-Some GSD workflows can fan out independent work to subagents. In Codex, GSD uses
-`spawn_agent` / `wait_agent` only when you explicitly authorize subagents for the
-current invocation. Pass `--parallel`, use direct wording such as "use parallel
-subagents", or answer Yes when the workflow asks.
+Some GSD workflows can fan out independent work to subagents. In Codex, the
+installed GSD adapter translates workflow `Agent()` / `Task()` calls to
+`spawn_agent` / `wait_agent` when Codex subagent tools are available and you
+authorize subagents for the current invocation.
 
-```bash
-/skill:gsd-map-codebase --parallel
-/skill:gsd-map-codebase --no-parallel
-```
+Use direct wording such as "use parallel subagents", or answer Yes when Codex
+asks whether to use parallel subagents for an independent fan-out workflow.
 
-If `spawn_agent` / `wait_agent` are unavailable, you pass `--no-parallel`, or you
-decline the prompt, GSD keeps the existing sequential inline fallback.
+If `spawn_agent` / `wait_agent` are unavailable, you ask to avoid subagents, or
+you decline the prompt, GSD keeps the existing sequential inline fallback.
 
 #### Switching from Claude to Codex with one config change (#2517)
 
