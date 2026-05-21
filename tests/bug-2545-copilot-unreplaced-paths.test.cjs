@@ -16,8 +16,15 @@ process.env.GSD_TEST_MODE = '1';
 
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-const { convertClaudeToCopilotContent } = require('../bin/install.js');
+const {
+  convertClaudeCommandToCodexSkill,
+  convertClaudeToCopilotContent,
+  collectLeakedClaudePathReferences,
+} = require('../bin/install.js');
 
 describe('convertClaudeToCopilotContent — bare ~/.claude (issue #2545)', () => {
   test('global install replaces bare ~/.claude at end of line', () => {
@@ -60,5 +67,48 @@ describe('convertClaudeToCopilotContent — bare ~/.claude (issue #2545)', () =>
     const out = convertClaudeToCopilotContent(input, true);
     assert.match(out, /~\/\.copilot\/get-shit-done\/foo\.md/);
     assert.ok(!/\.copilot\/\.copilot/.test(out));
+  });
+});
+
+describe('non-Claude leak scanner skips runtime-owned plugin caches', () => {
+  test('ignores Codex plugin temp and backup directories while still catching GSD leaks', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gsd-2545-leak-scan-'));
+    try {
+      const pluginTmp = path.join(root, '.tmp', 'plugins', 'plugins', 'superpowers', 'skills', 'writing-skills');
+      const pluginBackup = path.join(root, '.tmp', 'plugins-backup-abc123', 'repo', 'plugins', 'superpowers');
+      const gsdSkill = path.join(root, 'skills', 'gsd-example');
+      fs.mkdirSync(pluginTmp, { recursive: true });
+      fs.mkdirSync(pluginBackup, { recursive: true });
+      fs.mkdirSync(gsdSkill, { recursive: true });
+
+      fs.writeFileSync(path.join(pluginTmp, 'SKILL.md'), 'Plugin docs mention $HOME/.claude for Claude users.\n');
+      fs.writeFileSync(path.join(pluginBackup, 'CREATION-LOG.md'), 'Backup docs mention ~/.claude.\n');
+      fs.writeFileSync(path.join(gsdSkill, 'SKILL.md'), 'GSD leak: $HOME/.claude/get-shit-done/workflows/x.md\n');
+
+      assert.deepStrictEqual(collectLeakedClaudePathReferences(root), [
+        { file: 'skills/gsd-example/SKILL.md', count: 1 },
+      ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Codex conversion — bare ~/.claude paths', () => {
+  test('replaces bare global Claude config references in command skills', () => {
+    const input = [
+      '---',
+      'description: Test',
+      '---',
+      '',
+      'Surface state: `~/.claude/.gsd-surface.json`',
+      'Engine: `$HOME/.claude/get-shit-done/bin/lib/surface.cjs`',
+      '',
+    ].join('\n');
+
+    const out = convertClaudeCommandToCodexSkill(input, 'gsd-surface');
+    assert.doesNotMatch(out, /(?:~|\$HOME)\/\.claude\b/);
+    assert.match(out, /~\/\.codex\/\.gsd-surface\.json/);
+    assert.match(out, /\$HOME\/\.codex\/get-shit-done\/bin\/lib\/surface\.cjs/);
   });
 });

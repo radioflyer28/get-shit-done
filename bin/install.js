@@ -29,6 +29,8 @@ const {
   readCmdNames: readGsdCommandNames,
 } = require(path.join(__dirname, '..', 'scripts', 'fix-slash-commands.cjs'));
 
+const IS_GSD_TEST_MODE_AT_LOAD = process.env.GSD_TEST_MODE === '1';
+
 /**
  * Runtimes that register hyphen-form `name:` per #2808 AND copy agent bodies
  * verbatim (only branding swaps, no namespace conversion), so retired
@@ -2618,6 +2620,8 @@ function convertClaudeToCodexMarkdown(content) {
   // Path replacement: .claude → .codex (#1430)
   converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.codex/');
   converted = converted.replace(/~\/\.claude\//g, '~/.codex/');
+  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.codex');
+  converted = converted.replace(/~\/\.claude\b/g, '~/.codex');
   converted = converted.replace(/\.\/\.claude\//g, './.codex/');
   // Bare/project-relative .claude/... references (#2639). Covers strings like
   // "check `.claude/skills/`" where there is no ~/, $HOME/, or ./ anchor.
@@ -7581,6 +7585,64 @@ function verifyFileInstalled(filePath, description) {
 const PATCHES_DIR_NAME = 'gsd-local-patches';
 const MANIFEST_NAME = 'gsd-file-manifest.json';
 
+function shouldSkipClaudeLeakScanEntry(entryName) {
+  return (
+    entryName === '.tmp' ||
+    entryName === 'plugins' ||
+    entryName === PATCHES_DIR_NAME ||
+    entryName === '.gsd-pristine' ||
+    entryName.startsWith('plugins-backup-')
+  );
+}
+
+function collectLeakedClaudePathReferences(targetDir) {
+  const leakedPaths = [];
+  const normalizedTarget = path.resolve(targetDir);
+
+  function relativeToTarget(filePath) {
+    return path.relative(normalizedTarget, filePath).split(path.sep).join('/');
+  }
+
+  function scanForLeakedPaths(dir) {
+    if (!fs.existsSync(dir)) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      if (err.code === 'EPERM' || err.code === 'EACCES') {
+        return; // skip inaccessible directories
+      }
+      throw err;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory() && shouldSkipClaudeLeakScanEntry(entry.name)) {
+        continue;
+      }
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanForLeakedPaths(fullPath);
+      } else if ((entry.name.endsWith('.md') || entry.name.endsWith('.toml')) && entry.name !== 'CHANGELOG.md') {
+        let content;
+        try {
+          content = fs.readFileSync(fullPath, 'utf8');
+        } catch (err) {
+          if (err.code === 'EPERM' || err.code === 'EACCES') {
+            continue; // skip inaccessible files
+          }
+          throw err;
+        }
+        const matches = content.match(/(?:~|\$HOME)\/\.claude\b/g);
+        if (matches) {
+          leakedPaths.push({ file: relativeToTarget(fullPath), count: matches.length });
+        }
+      }
+    }
+  }
+
+  scanForLeakedPaths(normalizedTarget);
+  return leakedPaths;
+}
+
 /**
  * Compute SHA256 hash of file contents
  */
@@ -9005,40 +9067,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
 
   // Verify no leaked .claude paths in non-Claude runtimes
   if (runtime !== 'claude') {
-    const leakedPaths = [];
-    function scanForLeakedPaths(dir) {
-      if (!fs.existsSync(dir)) return;
-      let entries;
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-      } catch (err) {
-        if (err.code === 'EPERM' || err.code === 'EACCES') {
-          return; // skip inaccessible directories
-        }
-        throw err;
-      }
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          scanForLeakedPaths(fullPath);
-        } else if ((entry.name.endsWith('.md') || entry.name.endsWith('.toml')) && entry.name !== 'CHANGELOG.md') {
-          let content;
-          try {
-            content = fs.readFileSync(fullPath, 'utf8');
-          } catch (err) {
-            if (err.code === 'EPERM' || err.code === 'EACCES') {
-              continue; // skip inaccessible files
-            }
-            throw err;
-          }
-          const matches = content.match(/(?:~|\$HOME)\/\.claude\b/g);
-          if (matches) {
-            leakedPaths.push({ file: fullPath.replace(targetDir + '/', ''), count: matches.length });
-          }
-        }
-      }
-    }
-    scanForLeakedPaths(targetDir);
+    const leakedPaths = collectLeakedClaudePathReferences(targetDir);
     if (leakedPaths.length > 0) {
       const totalLeaks = leakedPaths.reduce((sum, l) => sum + l.count, 0);
       console.warn(`\n  ${yellow}⚠${reset}  Found ${totalLeaks} unreplaced .claude path reference(s) in ${leakedPaths.length} file(s):`);
@@ -9333,7 +9362,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
       // user is never left with a Codex CLI that won't load.
       // Test seam: tests can inject `__codexSchemaValidator` to force the
       // validator to fail and exercise the restore-and-abort path.
-      const validatorFn = (typeof module !== 'undefined' && module.exports && module.exports.__codexSchemaValidator)
+      const validatorFn = (IS_GSD_TEST_MODE_AT_LOAD && typeof module !== 'undefined' && module.exports && Object.prototype.hasOwnProperty.call(module.exports, '__codexSchemaValidator'))
         ? module.exports.__codexSchemaValidator
         : validateCodexConfigSchema;
       const validation = validatorFn(configContent);
@@ -11559,6 +11588,8 @@ module.exports = {
     convertClaudeToCliineMarkdown,
     convertClaudeAgentToClineAgent,
     writeManifest,
+    shouldSkipClaudeLeakScanEntry,
+    collectLeakedClaudePathReferences,
     saveLocalPatches,
     reportLocalPatches,
     validateHookFields,
