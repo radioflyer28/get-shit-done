@@ -295,6 +295,70 @@ describe('initProgress', () => {
       await rm(tmp, { recursive: true, force: true });
     }
   });
+
+  it('treats terminal heading labels as complete when selecting next_phase (#3472)', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'gsd-init-complex-3472-'));
+    try {
+      await mkdir(join(tmp, '.planning'), { recursive: true });
+      await writeFile(join(tmp, '.planning', 'config.json'), JSON.stringify({
+        model_profile: 'balanced',
+        commit_docs: false,
+        git: {
+          branching_strategy: 'none',
+          phase_branch_template: 'gsd/phase-{phase}-{slug}',
+          milestone_branch_template: 'gsd/{milestone}-{slug}',
+          quick_branch_template: null,
+        },
+        workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true },
+      }));
+      await writeFile(join(tmp, '.planning', 'STATE.md'), [
+        '---',
+        'milestone: v1.0',
+        '---',
+      ].join('\n'));
+      await writeFile(join(tmp, '.planning', 'ROADMAP.md'), [
+        '# Roadmap',
+        '',
+        '## v1.0: Current',
+        '',
+        '## Phase 4.12: Old Work (COMPLETE)',
+        '',
+        '## Phase 4.13: Another old one (SHIPPED 2026-05-12)',
+        '',
+        '## Phase 4.17: Human Auth (DEFERRED)',
+        '',
+        '## Phase 4.23: New pending work',
+        '',
+        '## Phase 4.24: Follow-up item (PROMOTED)',
+        '',
+        '## Phase 4.25: Another follow-up (REGISTERED)',
+        '',
+        '## Phase 4.26: Triage marker (INSERTED)',
+        '',
+      ].join('\n'));
+
+      const result = await initProgress([], tmp);
+      const data = result.data as Record<string, unknown>;
+      const phases = data.phases as Record<string, unknown>[];
+      const phase412 = phases.find(p => p.number === '4.12');
+      const phase413 = phases.find(p => p.number === '4.13');
+      const phase417 = phases.find(p => p.number === '4.17');
+      const phase424 = phases.find(p => p.number === '4.24');
+      const phase425 = phases.find(p => p.number === '4.25');
+      const phase426 = phases.find(p => p.number === '4.26');
+
+      expect(phase412?.status).toBe('complete');
+      expect(phase413?.status).toBe('complete');
+      expect(phase417?.status).toBe('complete');
+      expect(phase424?.status).not.toBe('complete');
+      expect(phase425?.status).not.toBe('complete');
+      expect(phase426?.status).not.toBe('complete');
+      expect(data.completed_count).toBe(3);
+      expect((data.next_phase as Record<string, unknown>).number).toBe('4.23');
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('initManager', () => {
@@ -548,5 +612,177 @@ describe('initManager workstream (#2731)', () => {
     } finally {
       await rm(tmp, { recursive: true, force: true });
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// initProgress + initManager precedence (#2674)
+//
+// Both handlers must agree on phase status given the same inputs. Specifically,
+// a ROADMAP `- [x] Phase N` checkbox wins over disk state: a stub phase dir
+// with no SUMMARY.md that is checked in ROADMAP reports as `complete` from
+// both handlers.
+//
+// Pre-fix: initManager reported `complete` (explicit override), initProgress
+// reported `pending` (disk-only policy). This mismatch meant /gsd-manager and
+// /gsd-progress disagreed on the same data. Post-fix: both apply the
+// ROADMAP-[x]-wins policy.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRECEDENCE_CONFIG = JSON.stringify({
+  model_profile: 'balanced',
+  commit_docs: false,
+  git: {
+    branching_strategy: 'none',
+    phase_branch_template: 'gsd/phase-{phase}-{slug}',
+    milestone_branch_template: 'gsd/{milestone}-{slug}',
+    quick_branch_template: null,
+  },
+  workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true },
+});
+
+const PRECEDENCE_STATE = [
+  '---',
+  'milestone: v1.0',
+  '---',
+].join('\n');
+
+/** Find a phase by numeric value regardless of zero-padding ('3' vs '03'). */
+function findPhaseByNum(
+  phases: Record<string, unknown>[],
+  num: number,
+): Record<string, unknown> | undefined {
+  return phases.find(p => parseInt(p.number as string, 10) === num);
+}
+
+/**
+ * Write a ROADMAP.md with the given phase list. Each entry is
+ * `{num, name, checked}`. Emits both the checkbox summary lines AND the
+ * `### Phase N:` heading sections (so initManager picks them up).
+ */
+async function writePrecedenceRoadmap(
+  dir: string,
+  phases: Array<{ num: string; name: string; checked: boolean }>,
+): Promise<void> {
+  const checkboxes = phases
+    .map(p => `- [${p.checked ? 'x' : ' '}] Phase ${p.num}: ${p.name}`)
+    .join('\n');
+  const sections = phases
+    .map(p => `### Phase ${p.num}: ${p.name}\n\n**Goal:** ${p.name} goal\n\n**Depends on:** None\n`)
+    .join('\n');
+  await writeFile(join(dir, '.planning', 'ROADMAP.md'), [
+    '# Roadmap',
+    '',
+    '## v1.0: Test',
+    '',
+    checkboxes,
+    '',
+    sections,
+  ].join('\n'));
+}
+
+describe('initProgress + initManager precedence (#2674)', () => {
+  let precedenceDir: string;
+
+  beforeEach(async () => {
+    precedenceDir = await mkdtemp(join(tmpdir(), 'gsd-2674-'));
+    await mkdir(join(precedenceDir, '.planning', 'phases'), { recursive: true });
+    await writeFile(join(precedenceDir, '.planning', 'config.json'), PRECEDENCE_CONFIG);
+    await writeFile(join(precedenceDir, '.planning', 'STATE.md'), PRECEDENCE_STATE);
+  });
+
+  afterEach(async () => {
+    await rm(precedenceDir, { recursive: true, force: true });
+  });
+
+  it('case 1: ROADMAP [x] + stub phase dir + no SUMMARY → both report complete', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [{ num: '3', name: 'Stubbed', checked: true }]);
+    await mkdir(join(precedenceDir, '.planning', 'phases', '03-stubbed'), { recursive: true });
+    // stub dir, no PLAN/SUMMARY/RESEARCH/CONTEXT files
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    const pPhase = findPhaseByNum(progress.phases as Record<string, unknown>[], 3);
+    const mPhase = findPhaseByNum(manager.phases as Record<string, unknown>[], 3);
+
+    expect(pPhase?.status).toBe('complete');
+    expect(mPhase?.disk_status).toBe('complete');
+  });
+
+  it('case 2: ROADMAP [x] + phase dir + SUMMARY present → both complete (sanity)', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [{ num: '3', name: 'Done', checked: true }]);
+    await mkdir(join(precedenceDir, '.planning', 'phases', '03-done'), { recursive: true });
+    await writeFile(join(precedenceDir, '.planning', 'phases', '03-done', '03-01-PLAN.md'), '# plan');
+    await writeFile(join(precedenceDir, '.planning', 'phases', '03-done', '03-01-SUMMARY.md'), '# done');
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    const pPhase = findPhaseByNum(progress.phases as Record<string, unknown>[], 3);
+    const mPhase = findPhaseByNum(manager.phases as Record<string, unknown>[], 3);
+
+    expect(pPhase?.status).toBe('complete');
+    expect(mPhase?.disk_status).toBe('complete');
+  });
+
+  it('case 3: ROADMAP [ ] + phase dir + SUMMARY present → disk authoritative (complete)', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [{ num: '3', name: 'Disk', checked: false }]);
+    await mkdir(join(precedenceDir, '.planning', 'phases', '03-disk'), { recursive: true });
+    await writeFile(join(precedenceDir, '.planning', 'phases', '03-disk', '03-01-PLAN.md'), '# plan');
+    await writeFile(join(precedenceDir, '.planning', 'phases', '03-disk', '03-01-SUMMARY.md'), '# done');
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    const pPhase = findPhaseByNum(progress.phases as Record<string, unknown>[], 3);
+    const mPhase = findPhaseByNum(manager.phases as Record<string, unknown>[], 3);
+
+    expect(pPhase?.status).toBe('complete');
+    expect(mPhase?.disk_status).toBe('complete');
+  });
+
+  it('case 4: ROADMAP [ ] + stub phase dir + no SUMMARY → not complete', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [{ num: '3', name: 'Empty', checked: false }]);
+    await mkdir(join(precedenceDir, '.planning', 'phases', '03-empty'), { recursive: true });
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    const pPhase = findPhaseByNum(progress.phases as Record<string, unknown>[], 3);
+    const mPhase = findPhaseByNum(manager.phases as Record<string, unknown>[], 3);
+
+    // Neither should be 'complete' — preserves pre-existing classification.
+    expect(pPhase?.status).not.toBe('complete');
+    expect(mPhase?.disk_status).not.toBe('complete');
+  });
+
+  it('case 5: ROADMAP [x] + no phase dir → both complete (ROADMAP-only branch preserved)', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [{ num: '3', name: 'Paper', checked: true }]);
+    // no directory for phase 3
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    const pPhase = findPhaseByNum(progress.phases as Record<string, unknown>[], 3);
+    const mPhase = findPhaseByNum(manager.phases as Record<string, unknown>[], 3);
+
+    expect(pPhase?.status).toBe('complete');
+    expect(mPhase?.disk_status).toBe('complete');
+  });
+
+  it('case 6: completed_count agrees across handlers for the stub-dir [x] case', async () => {
+    await writePrecedenceRoadmap(precedenceDir, [
+      { num: '3', name: 'Stub', checked: true },
+      { num: '4', name: 'Todo', checked: false },
+    ]);
+    await mkdir(join(precedenceDir, '.planning', 'phases', '03-stub'), { recursive: true });
+    await mkdir(join(precedenceDir, '.planning', 'phases', '04-todo'), { recursive: true });
+
+    const progress = (await initProgress([], precedenceDir)).data as Record<string, unknown>;
+    const manager = (await initManager([], precedenceDir)).data as Record<string, unknown>;
+
+    expect(progress.completed_count).toBe(1);
+    expect(manager.completed_count).toBe(1);
   });
 });
