@@ -89,6 +89,8 @@ if [ "$RUNTIME" = "codex" ] && [ "$USE_WORKTREES" != "false" ]; then
   echo "FATAL: Codex execute-phase worktree isolation is unsupported. Set workflow.use_worktrees=false or use a runtime with Agent isolation=\"worktree\" support." >&2
   exit 1
 fi
+# Sweep orphaned locked worktrees from prior crashed sessions before spawning executors (#3707).
+[ "$USE_WORKTREES" != "false" ] && gsd-sdk query worktree.reap-orphans 2>/dev/null || true
 ```
 Codex maps subagents to `spawn_agent`, which has no direct Codex mapping for Claude Code's `isolation="worktree"` parameter. Failing closed prevents main-checkout edits while the workflow believes agents are isolated.
 
@@ -717,7 +719,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    ```bash
    SKIP_HOOKS=$(gsd-sdk query config-get workflow.worktree_skip_hooks 2>/dev/null || echo "false")
    if [ "$SKIP_HOOKS" = "true" ]; then
-     # Stash uncommitted changes under a named ref so we always pop (bare `git stash` strands them on hook/script failure).
+     # Stash uncommitted changes under a named ref so we always pop (bare `git stash` strands them on hook/script failure). #3542: `refs/stash` is shared across worktrees, so this helper runs ONLY in the orchestrator's main checkout after all wave worktrees have been merged + removed; executors are forbidden from running any `git stash` subcommand (see `<destructive_git_prohibition>` in `agents/gsd-executor.md`).
      STASHED=false
      if (! git diff --quiet || ! git diff --cached --quiet) && git stash push -u -m "gsd-post-wave-hook-$$" >/dev/null 2>&1; then STASHED=true; fi
      git hook run pre-commit 2>&1 || echo "⚠ Pre-commit hooks failed — review before continuing"
