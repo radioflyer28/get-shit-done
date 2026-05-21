@@ -19,6 +19,7 @@ const {
   convertClaudeToKiloFrontmatter,
   convertClaudeToGeminiAgent,
   convertClaudeAgentToPiSubagentAgent,
+  convertClaudeCommandToPiSkill,
   injectPiSubagentsSkillAdapter,
   neutralizeAgentReferences,
 } = require('../bin/install.js');
@@ -343,6 +344,27 @@ Check .claude/skills/ for project skills. Claude Code should follow project rule
 });
 
 describe('injectPiSubagentsSkillAdapter', () => {
+  test('Pi skill conversion rewrites command vocabulary and injects adapter', () => {
+    const input = `---
+description: Execute a phase
+allowed-tools:
+  - Read
+  - Write
+---
+
+Run /gsd:plan-phase, read CLAUDE.md, then use Claude Code.`;
+
+    const result = convertClaudeCommandToPiSkill(input, 'gsd-execute-phase');
+
+    assert.ok(result.includes('name: gsd-execute-phase'), 'skill name should be hyphenated');
+    assert.ok(result.includes('/skill:gsd-plan-phase'), 'slash command should become Pi skill command');
+    assert.ok(result.includes('AGENTS.md'), 'project instruction file should become AGENTS.md');
+    assert.ok(result.includes('then use Pi'), 'runtime branding should become Pi');
+    assert.ok(result.includes('<pi_subagents_adapter>'), 'adapter block should be present');
+    assert.ok(!result.includes('allowed-tools:'), 'Claude allowed-tools list should be omitted for Pi');
+    assert.ok(!result.includes('CLAUDE.md'), 'no CLAUDE.md leak');
+  });
+
   test('adds optional pi-subagents mapping guidance once', () => {
     const input = `---
 name: gsd-plan-phase
