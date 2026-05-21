@@ -17,6 +17,10 @@ const { getGlobalSkillDir } = require('./runtime-homes.cjs');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+function usesAgentsMdProjectInstructions(runtime) {
+  return runtime === 'codex' || runtime === 'pi';
+}
+
 const DIMENSION_KEYS = [
   'communication_style', 'decision_speed', 'explanation_depth',
   'debugging_approach', 'ux_philosophy', 'vendor_philosophy',
@@ -898,6 +902,10 @@ function cmdGenerateClaudeProfile(cwd, options, raw) {
     try {
       const config = loadConfig(cwd);
       if (config.claude_md_path) configClaudeMdPath = config.claude_md_path;
+      const effectiveRuntime = process.env.GSD_RUNTIME || config.runtime || null;
+      if (usesAgentsMdProjectInstructions(effectiveRuntime)) {
+        configClaudeMdPath = './AGENTS.md';
+      }
     } catch { /* use default */ }
     targetPath = path.isAbsolute(configClaudeMdPath) ? configClaudeMdPath : path.join(cwd, configClaudeMdPath);
   }
@@ -977,11 +985,11 @@ function cmdGenerateClaudeMd(cwd, options, raw) {
     const config = loadConfig(cwd);
     if (config.claude_md_path) configClaudeMdPath = config.claude_md_path;
     if (config.claude_md_assembly) assemblyConfig = config.claude_md_assembly;
-    // #3163: When runtime is codex, override the output target to AGENTS.md
-    // regardless of claude_md_path, so Codex projects never write to CLAUDE.md.
+    // #3163 + Pi parity: AGENTS.md runtimes override the output target
+    // regardless of claude_md_path, so they never write to CLAUDE.md.
     // GSD_RUNTIME env var takes precedence over config.runtime, mirroring detectRuntime().
     const effectiveRuntime = process.env.GSD_RUNTIME || config.runtime || null;
-    if (!options.output && effectiveRuntime === 'codex') {
+    if (!options.output && usesAgentsMdProjectInstructions(effectiveRuntime)) {
       configClaudeMdPath = './AGENTS.md';
     }
   } catch { /* use default */ }

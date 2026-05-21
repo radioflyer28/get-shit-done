@@ -6293,6 +6293,10 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
       let jsContent = fs.readFileSync(srcPath, 'utf8');
       jsContent = convertClaudeToPiContent(jsContent);
       fs.writeFileSync(destPath, jsContent);
+    } else if (isPi && entry.name.endsWith('.json')) {
+      let jsonContent = fs.readFileSync(srcPath, 'utf8');
+      jsonContent = convertClaudeToPiContent(jsonContent);
+      fs.writeFileSync(destPath, jsonContent);
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
