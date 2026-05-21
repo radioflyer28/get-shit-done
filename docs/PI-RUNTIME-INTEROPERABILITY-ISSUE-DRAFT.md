@@ -38,6 +38,8 @@ It adds behavior so that:
 5. Existing GSD v1 `.planning/` artifacts remain the canonical project state.
 6. Optional `pi-subagents` support is documented and used only when Pi exposes the `subagent` tool; missing `subagent` support falls back to sequential inline workflow behavior.
 
+It does not add Pi hook parity. Pi hook parity would require Pi-native TypeScript extension modules, not a copy of the existing GSD JS/shell hook files. That belongs in a separate follow-up feature.
+
 Example usage:
 
 ```bash
@@ -70,6 +72,70 @@ Systems affected:
 - Runtime path rewriting.
 - Existing GSD v1 `.planning/` workflows.
 
+Systems intentionally not affected:
+
+- Pi extension registration.
+- Pi TypeScript extension modules.
+- GSD runtime event hook behavior inside Pi.
+- New Pi package/plugin dependencies.
+
+## Follow-up Proposal: Pi Extensions Hook Parity
+
+Pi hook parity should be handled as a separate feature after the lightweight runtime interoperability layer is accepted and shipped.
+
+### Problem
+
+GSD currently ships hook behavior for runtimes that support subprocess-style JS or shell hooks. Those hooks power behavior such as context monitoring, read guards, status updates, workflow guidance, update banners, and session-start orientation.
+
+Pi does not consume those hook files as-is. Pi's extension model expects TypeScript extension modules loaded through Pi's extension API. Copying GSD's existing `hooks/` files into Pi paths is not enough, and in some Pi versions it can create startup warnings because the older Pi `hooks/` directory was renamed to `extensions/`.
+
+### Proposed Feature
+
+Add a new "Pi Extensions" implementation that re-creates GSD hook behavior using Pi-native extension modules.
+
+The implementation would add a separate set of `.ts` extension modules that follow Pi's extension shape:
+
+```ts
+export function activate(api) {
+  // Register Pi-native handlers here.
+}
+```
+
+Those modules would register Pi event handlers for the closest available equivalents to:
+
+- pre-tool checks currently covered by GSD PreToolUse hooks.
+- post-tool checks currently covered by GSD PostToolUse hooks.
+- session-start context injection and orientation.
+- status/update signals, if Pi exposes a supported event or UI surface for them.
+
+Where Pi does not expose an equivalent event, the extension should degrade cleanly and document the unsupported behavior.
+
+### Expected Deliverables
+
+- A Pi extension source directory, separate from the existing runtime-agnostic `hooks/` implementation.
+- One or more TypeScript modules implementing `activate(api)` and registering Pi-native handlers.
+- Installer support that installs Pi extensions into Pi's `extensions/` location only when the runtime is explicitly `pi`.
+- Shared logic extraction where useful so Pi extensions can reuse GSD policy checks without duplicating business rules.
+- Documentation mapping existing GSD hook behavior to Pi extension behavior.
+- Tests for extension generation/installation, runtime gating, and unsupported-event fallback.
+
+### Non-goals
+
+- Do not copy existing GSD JS/shell hook files into Pi's `extensions/` directory.
+- Do not put Pi extension behavior in this GSD v1 interoperability feature.
+- Do not require Pi extensions for basic GSD v1 workflow interoperability.
+- Do not add MCP servers or unrelated runtime plugin surfaces.
+- Do not make Pi installs fail when extension support is unavailable.
+
+### Acceptance Criteria For The Follow-up
+
+- [ ] Pi installs include GSD Pi extensions only when `--pi` is selected.
+- [ ] Each Pi extension module uses Pi's supported extension API entry point, including `activate(api)`.
+- [ ] The extension layer registers available pre-tool, post-tool, and session-start handlers through Pi's API.
+- [ ] Unsupported hook-equivalent behavior is documented and skipped cleanly.
+- [ ] Existing non-Pi hook installation and behavior remains unchanged.
+- [ ] GSD v1 `.planning/` interoperability works with or without Pi extension support.
+
 ## User Stories
 
 1. As a developer using Pi, I want to install GSD v1 into Pi-native paths so that I can work in a repository that already uses `.planning/` artifacts.
@@ -85,7 +151,8 @@ Systems affected:
 - [ ] Generated Pi agents omit Claude-only frontmatter and tool fields that Pi does not support.
 - [ ] Existing GSD v1 `.planning/` artifacts remain unchanged and canonical.
 - [ ] `pi-subagents` is optional; if the `subagent` tool is unavailable, workflows use existing sequential fallback behavior.
-- [ ] No Pi extensions, MCP servers, TypeScript extension dependencies, or package publishing metadata are added.
+- [ ] No Pi extensions, MCP servers, TypeScript extension dependencies, hook-parity modules, or package publishing metadata are added.
+- [ ] Hook parity is documented only as a separate future Pi Extensions feature.
 - [ ] Tests cover installer paths, install/uninstall behavior, generated agent conversion, path/reference rewriting, and optional subagent fallback guidance.
 - [ ] Existing non-Pi runtime behavior remains unchanged.
 
@@ -111,11 +178,12 @@ This should be additive and backward compatible:
 ## Maintenance Burden
 
 - No new dependencies.
-- No Pi extensions, MCP servers, or package metadata changes.
+- No Pi extensions, MCP servers, hook-parity modules, or package metadata changes.
 - No hand-maintained duplicate Pi agent library.
 - Pi output should be generated from canonical GSD skills and agents at install time.
 - Ongoing maintenance should be limited to the same runtime conversion seams used by other supported runtimes.
 - If Pi changes its skill or subagent file format, only the Pi conversion adapter should need updates.
+- If Pi hook parity is needed later, it should be implemented through the separate Pi Extensions proposal above.
 
 ## Alternatives Considered
 
@@ -127,6 +195,8 @@ This should be additive and backward compatible:
 
 3. Add Pi extensions, MCP servers, or TypeScript support code.
    Rejected because prior Pi integration review flagged undocumented extension APIs, MCP/security surface, and extra dependencies as maintenance and security risks.
+
+   Hook parity in Pi is still potentially useful, but it is a different feature. It would require Pi-native `.ts` extension modules that implement `activate(api)` and register Pi pre-tool, post-tool, session-start, or equivalent handlers through Pi's API. That work should be designed, reviewed, and tested independently instead of being bundled into the basic GSD v1 interoperability layer.
 
 4. Automatically install `pi-subagents`.
    Rejected because the GSD installer should avoid network/package-manager side effects. Users can install optional packages themselves.
