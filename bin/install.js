@@ -2670,7 +2670,10 @@ Direct mapping:
 - \`Agent(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
 - \`Task(subagent_type="X", prompt="Y")\` → \`spawn_agent(agent_type="X", message="Y")\`
 - \`run_in_background=true\` → spawn all independent agents first, then collect them with \`wait_agent([...])\`
-- \`Agent(model="...")\` / \`Task(model="...")\` → pass \`model="..."\` to \`spawn_agent\`
+- \`Agent(model="...")\` / \`Task(model="...")\` → omit. \`spawn_agent\` has no inline \`model\` parameter;
+  GSD embeds the resolved per-agent model directly into each agent's \`.toml\`
+  at install time so \`model_overrides\` from \`.planning/config.json\` and
+  \`~/.gsd/defaults.json\` are honored automatically by Codex's agent router.
 - Resolved \`reasoning_effort="low|medium|high|xhigh"\` (\`xhigh\` is a GSD/Codex tier, not a generic runtime enum) → pass \`reasoning_effort\`
   to \`spawn_agent\` when the runtime/tool supports it. If a workflow does not
   provide inline model settings, rely on the resolved per-agent model embedded

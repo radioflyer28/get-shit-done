@@ -45,7 +45,8 @@ describe('Codex parallel subagent adapter', () => {
     assert.match(header, /Agent\(subagent_type="X", prompt="Y"\).*spawn_agent\(agent_type="X", message="Y"\)/s);
     assert.match(header, /Task\(subagent_type="X", prompt="Y"\).*spawn_agent\(agent_type="X", message="Y"\)/s);
     assert.match(header, /run_in_background=true.*wait_agent\(\[\.\.\.\]\)/s);
-    assert.match(header, /Agent\(model="\.\.\."\)` \/ `Task\(model="\.\.\."\)` → pass `model="\.\.\."` to `spawn_agent`/);
+    assert.match(header, /Agent\(model="\.\.\."\)` \/ `Task\(model="\.\.\."\)` → omit/);
+    assert.match(header, /model_overrides.*honored automatically by Codex's agent router/s);
     assert.match(header, /reasoning_effort="low\|medium\|high\|xhigh".*pass `reasoning_effort`\s+to `spawn_agent`/s);
     assert.match(header, /treat Codex\s+`spawn_agent` as the equivalent subagent capability/s);
     assert.match(header, /Do NOT\s+require a separate Codex-only `--parallel` flag/s);
