@@ -1242,6 +1242,19 @@ To assign different models to different agents on a non-Claude runtime, add `mod
 
 The installer auto-configures `resolve_model_ids: "omit"` for Gemini CLI, OpenCode, Kilo, Codex, Pi, and other non-Claude runtimes. If you're manually setting up a non-Claude runtime, add it to `.planning/config.json` yourself.
 
+#### Codex parallel subagents (#3475)
+
+Some GSD workflows can fan out independent work to subagents. In Codex, the
+installed GSD adapter translates workflow `Agent()` / `Task()` calls to
+`spawn_agent` / `wait_agent` when Codex subagent tools are available and you
+authorize subagents for the current invocation.
+
+Use direct wording such as "use parallel subagents", or answer Yes when Codex
+asks whether to use parallel subagents for an independent fan-out workflow.
+
+If `spawn_agent` / `wait_agent` are unavailable, you ask to avoid subagents, or
+you decline the prompt, GSD keeps the existing sequential inline fallback.
+
 #### Switching from Claude to Codex with one config change (#2517)
 
 If you want tiered models on Codex without writing a large `model_overrides` block, set `runtime: "codex"` and pick a profile:
