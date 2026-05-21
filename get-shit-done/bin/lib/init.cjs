@@ -5,11 +5,13 @@
 const fs = require('fs');
 const path = require('path');
 const { execGit, platformWriteSync, platformReadSync } = require('./shell-command-projection.cjs');
-const { loadConfig, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, normalizePhaseName, toPosixPath, output, error, checkAgentsInstalled, phaseTokenMatches } = require('./core.cjs');
-const { planningPaths, planningDir, planningRoot } = require('./planning-workspace.cjs');
+const { loadConfig, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, gitWorktreeInfoInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, normalizePhaseName, toPosixPath, output, error, checkAgentsInstalled, phaseTokenMatches } = require('./core.cjs');
+const { planningPaths, planningDir, planningRoot, findContextMdIn } = require('./planning-workspace.cjs');
 const { maskIfSecret } = require('./secrets.cjs');
 const scanPhasePlans = require('./plan-scan.cjs');
 const { stateExtractField } = require('./state-document.cjs');
+const { formatGsdSlash, resolveRuntime } = require('./runtime-slash.cjs');
+const { determinePhaseStatus } = require('./commands.cjs');
 
 // Accept all bold/colon variants of the Requirements header (#2769):
 // **Requirements:** / **Requirements**: / **Requirements** : render the
@@ -72,6 +74,77 @@ function withProjectRoot(cwd, result) {
     }
   }
   return result;
+}
+
+/**
+ * Return git-worktree state for init payloads with robust nested-subdir
+ * detection across Windows short/long path forms and slash variants.
+ */
+function getInitGitState(cwd) {
+  const info = gitWorktreeInfoInternal(cwd);
+  const worktreeRoot = info.worktreeRoot;
+  const normalizeForCompare = (p) => {
+    if (typeof p !== 'string' || p.length === 0) return null;
+    let resolved;
+    try {
+      resolved = fs.realpathSync.native(p);
+    } catch {
+      resolved = path.resolve(p);
+    }
+    resolved = path.resolve(resolved);
+    if (process.platform === 'win32') {
+      return resolved.replace(/\//g, '\\').toLowerCase();
+    }
+    return resolved;
+  };
+
+  let inNestedSubdir = false;
+  if (info.inside) {
+    let resolvedByGitPrefix = false;
+    try {
+      const prefixResult = execGit(['rev-parse', '--show-prefix'], { cwd, timeout: 5000 });
+      if (prefixResult.exitCode === 0) {
+        const prefix = String(prefixResult.stdout || '').trim().replace(/\\/g, '/');
+        inNestedSubdir = prefix.length > 0 && prefix !== '.' && prefix !== './';
+        resolvedByGitPrefix = true;
+      }
+    } catch {}
+
+    if (!resolvedByGitPrefix) {
+      const rootNorm = normalizeForCompare(worktreeRoot);
+      const cwdNorm = normalizeForCompare(cwd);
+      if (rootNorm && cwdNorm) {
+        if (rootNorm === cwdNorm) {
+          inNestedSubdir = false;
+        } else {
+          const rel = path.relative(rootNorm, cwdNorm);
+          const relNorm = process.platform === 'win32' ? rel.replace(/\//g, '\\') : rel;
+          inNestedSubdir =
+            relNorm !== '' &&
+            relNorm !== '.' &&
+            !relNorm.startsWith('..') &&
+            !path.isAbsolute(relNorm);
+        }
+      } else {
+        inNestedSubdir = worktreeRoot !== null;
+      }
+    }
+  }
+
+  // Defensive final guard: if git reports the same root path as cwd (after
+  // slash/case normalization), we are at the worktree root, never nested.
+  if (inNestedSubdir && typeof worktreeRoot === 'string') {
+    const toComparableRaw = (p) => p.replace(/\\/g, '/').replace(/\/+$/g, '').toLowerCase();
+    if (toComparableRaw(worktreeRoot) === toComparableRaw(String(cwd))) {
+      inNestedSubdir = false;
+    }
+  }
+
+  return {
+    has_git: info.inside,
+    git_worktree_root: worktreeRoot,
+    in_nested_subdir: inNestedSubdir,
+  };
 }
 
 function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
@@ -295,6 +368,20 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
     padded_phase: phaseNumberPlan ? normalizePhaseName(phaseNumberPlan) : null,
     phase_req_ids,
 
+    // #3569: surface phase lifecycle status so /gsd:plan-phase can short-circuit
+    // on closed (Complete) phases instead of silently replanning over shipped
+    // code. Reuses determinePhaseStatus — the project-wide vocabulary
+    // (Pending | Planned | In Progress | Executed | Complete | Needs Review).
+    // No directory yet → Pending (phase has not been started).
+    phase_status: phaseDirPlan
+      ? determinePhaseStatus(
+          phaseInfo?.plans?.length || 0,
+          phaseInfo?.summaries?.length || 0,
+          path.join(cwd, phaseDirPlan),
+          'Pending',
+        )
+      : 'Pending',
+
     // Existing artifacts
     has_research: phaseInfo?.has_research || false,
     has_context: phaseInfo?.has_context || false,
@@ -320,7 +407,7 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
     const phaseDirFull = path.join(cwd, phaseInfo.directory);
     try {
       const files = fs.readdirSync(phaseDirFull);
-      const contextFile = files.find(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
+      const contextFile = findContextMdIn(phaseDirFull);
       if (contextFile) {
         result.context_path = toPosixPath(path.join(phaseInfo.directory, contextFile));
       }
@@ -458,8 +545,8 @@ function cmdInitNewProject(cwd, raw) {
     is_brownfield: hasCode || hasPackageFile,
     needs_codebase_map: (hasCode || hasPackageFile) && !pathExistsInternal(cwd, '.planning/codebase'),
 
-    // Git state
-    has_git: pathExistsInternal(cwd, '.git'),
+    // Git state (Bug #3491: detect parent worktree to avoid nested .git init)
+    ...getInitGitState(cwd),
 
     // Enhanced search
     brave_search_available: hasBraveSearch,
@@ -593,7 +680,7 @@ function cmdInitIngestDocs(cwd, raw) {
   const result = {
     project_exists: pathExistsInternal(cwd, '.planning/PROJECT.md'),
     planning_exists: fs.existsSync(planningRoot(cwd)),
-    has_git: fs.existsSync(path.join(cwd, '.git')),
+    ...getInitGitState(cwd),
     project_path: '.planning/PROJECT.md',
     commit_docs: config.commit_docs,
   };
@@ -798,7 +885,7 @@ function cmdInitPhaseOp(cwd, phase, raw) {
     const phaseDirFull = path.join(cwd, phaseInfo.directory);
     try {
       const files = fs.readdirSync(phaseDirFull);
-      const contextFile = files.find(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
+      const contextFile = findContextMdIn(phaseDirFull);
       if (contextFile) {
         result.context_path = toPosixPath(path.join(phaseInfo.directory, contextFile));
       }
@@ -1036,16 +1123,20 @@ function cmdInitMapCodebase(cwd, raw) {
 function cmdInitManager(cwd, raw) {
   const config = loadConfig(cwd);
   const milestone = getMilestoneInfo(cwd);
+  // Resolve the runtime once so every emitted slash-command reference uses
+  // the routable shape for this install (#3584). Hyphen form for skills-based
+  // runtimes, $gsd-<cmd> shell-var for codex.
+  const _slashRuntime = resolveRuntime(cwd);
 
   // Use planningPaths for forward-compatibility with workstream scoping (#1268)
   const paths = planningPaths(cwd);
 
   // Validate prerequisites
   if (!fs.existsSync(paths.roadmap)) {
-    error('No ROADMAP.md found. Run /gsd:new-milestone first.');
+    error(`No ROADMAP.md found. Run ${formatGsdSlash('new-milestone', _slashRuntime)} first.`);
   }
   if (!fs.existsSync(paths.state)) {
-    error('No STATE.md found. Run /gsd:new-milestone first.');
+    error(`No STATE.md found. Run ${formatGsdSlash('new-milestone', _slashRuntime)} first.`);
   }
   const rawContent = fs.readFileSync(paths.roadmap, 'utf-8');
   const content = extractCurrentMilestone(rawContent, cwd);
@@ -1107,7 +1198,7 @@ function cmdInitManager(cwd, raw) {
         const phaseFiles = fs.readdirSync(fullDir);
         planCount = listPhasePlanFiles(fullDir).length;
         summaryCount = listPhaseSummaryFiles(fullDir).length;
-        hasContext = phaseFiles.some(f => f.endsWith('-CONTEXT.md') || f === 'CONTEXT.md');
+        hasContext = findContextMdIn(fullDir) !== null;
         hasResearch = phaseFiles.some(f => f.endsWith('-RESEARCH.md') || f === 'RESEARCH.md');
 
         if (summaryCount >= planCount && planCount > 0) diskStatus = 'complete';
@@ -1225,7 +1316,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'execute',
         reason: `${phase.plan_count} plans ready, dependencies met`,
-        command: `/gsd:execute-phase ${phase.number}`,
+        command: `${formatGsdSlash('execute-phase', _slashRuntime)} ${phase.number}`,
       });
     } else if (phase.disk_status === 'discussed' || phase.disk_status === 'researched') {
       recommendedActions.push({
@@ -1233,7 +1324,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'plan',
         reason: 'Context gathered, ready for planning',
-        command: `/gsd:plan-phase ${phase.number}`,
+        command: `${formatGsdSlash('plan-phase', _slashRuntime)} ${phase.number}`,
       });
     } else if ((phase.disk_status === 'empty' || phase.disk_status === 'no_directory') && phase.is_next_to_discuss) {
       recommendedActions.push({
@@ -1241,7 +1332,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'discuss',
         reason: 'Unblocked, ready to gather context',
-        command: `/gsd:discuss-phase ${phase.number}`,
+        command: `${formatGsdSlash('discuss-phase', _slashRuntime)} ${phase.number}`,
       });
     }
   }

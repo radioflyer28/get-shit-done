@@ -152,6 +152,14 @@ Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_mo
 USE_WORKTREES=$(gsd-sdk query config-get workflow.use_worktrees 2>/dev/null || echo "true")
 ```
 
+If `USE_WORKTREES` is not `"false"`, run a startup orphan sweep before spawning any executors. This reaps locked worktrees whose lock-owner process is dead, whose branch is merged into the default branch, and whose lock file mtime is older than 5 minutes. Running it at startup prevents accumulation of orphaned worktrees from prior sessions that exited without cleanup (#3707).
+
+```bash
+if [ "$USE_WORKTREES" != "false" ]; then
+  gsd-sdk query worktree.reap-orphans 2>/dev/null || true
+fi
+```
+
 If the project uses git submodules, worktree isolation is unsafe **only when the quick task touches a submodule path**. The previous behavior unconditionally disabled worktree isolation whenever `.gitmodules` existed, which penalised every quick task in a submodule project even when the task was nowhere near a submodule. Parse submodule paths from `.gitmodules` so the executor can act on actual submodule paths rather than the mere file's existence:
 
 ```bash
@@ -799,6 +807,19 @@ After executor returns:
    node -e 'const fs=require("fs");const p=process.env.QUICK_WORKTREE_MANIFEST||process.env.WAVE_WORKTREE_MANIFEST;try{if(!p)throw new Error("QUICK_WORKTREE_MANIFEST is unset");if(!fs.existsSync(p))throw new Error("manifest does not exist");const s=fs.readFileSync(p,"utf8");if(!s.trim())throw new Error("manifest is empty");const j=JSON.parse(s);for(const w of j.worktrees||[])if(w.worktree_path)console.log(w.worktree_path)}catch(e){console.error(`ERROR: cannot read worktree manifest ${p||"(unset)"}: ${e.message}`);process.exit(1)}' > "$WT_PATHS_FILE" || { echo "BLOCKED: cannot read QUICK_WORKTREE_MANIFEST; refusing cleanup (#3384)." >&2; exit 1; }
    while IFS= read -r WT; do
      [ -z "$WT" ] && continue
+     # Pin CWD to project root before any bare git command (#3521).
+     # An LLM orchestrator may leak CWD into a worktree across tool calls; without
+     # this pin the merge command resolves against the worktree branch itself and
+     # silently no-ops the main-branch merge.
+     PROJECT_ROOT=$(git -C "$WT" rev-parse --git-common-dir 2>/dev/null)
+     # git rev-parse --git-common-dir returns the .git dir, not the working tree root.
+     # Strip the trailing /.git (or bare .git) to get the working tree root.
+     PROJECT_ROOT=$(echo "$PROJECT_ROOT" | sed 's|/\.git$||; s|/\.git/.*||')
+     if [ -z "$PROJECT_ROOT" ] || [ ! -d "$PROJECT_ROOT" ]; then
+       echo "WARN: cannot resolve project root from worktree $WT — skipping cleanup for this entry (#3521)" >&2
+       continue
+     fi
+     cd "$PROJECT_ROOT" || { echo "WARN: cannot cd to project root $PROJECT_ROOT — skipping cleanup for worktree $WT (#3521)" >&2; continue; }
      WT_BRANCH=$(git -C "$WT" rev-parse --abbrev-ref HEAD 2>/dev/null)
      if [ -n "$WT_BRANCH" ] && [ "$WT_BRANCH" != "HEAD" ]; then
        # --- Orchestrator file protection (#1756) ---

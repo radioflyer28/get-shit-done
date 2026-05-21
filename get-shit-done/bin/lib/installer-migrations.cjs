@@ -7,6 +7,7 @@ const {
   validateInstallerMigrationActions,
   validateInstallerMigrationRecord,
 } = require('./installer-migration-authoring.cjs');
+const { platformWriteSync } = require('./shell-command-projection.cjs');
 
 const MANIFEST_NAME = 'gsd-file-manifest.json';
 const INSTALL_STATE_NAME = 'gsd-install-state.json';
@@ -71,9 +72,24 @@ function readInstallState(configDir) {
   };
 }
 
-function writeInstallState(configDir, state) {
+// Strict atomic write for the install state: must never be left half-written.
+// Bypasses the seam because platformWriteSync falls back to a direct write on
+// rename failure, which would silently violate this invariant.
+function atomicWriteInstallState(configDir, content) {
   fs.mkdirSync(configDir, { recursive: true });
-  writeFileAtomicSync(path.join(configDir, INSTALL_STATE_NAME), JSON.stringify(state, null, 2) + '\n');
+  const filePath = path.join(configDir, INSTALL_STATE_NAME);
+  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(tmpPath, content, 'utf8');
+    fs.renameSync(tmpPath, filePath);
+  } catch (error) {
+    try { fs.rmSync(tmpPath, { force: true }); } catch { /* best-effort */ }
+    throw error;
+  }
+}
+
+function writeInstallState(configDir, state) {
+  atomicWriteInstallState(configDir, JSON.stringify(state, null, 2) + '\n');
   return state;
 }
 
@@ -207,6 +223,40 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(buffer), 0, 0, ms);
 }
 
+/**
+ * Check whether a given PID is alive on the current host.
+ * Uses process.kill(pid, 0) which works on POSIX and Windows (Node's
+ * implementation maps it to OpenProcess + GetExitCodeProcess on win32).
+ * Returns true if alive or permission-denied (live but not ours),
+ * false if ESRCH (no such process).
+ */
+function isPidAlive(pid) {
+  if (typeof pid !== 'number' || !Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true; // alive (or permission denied — treat as live)
+  } catch (err) {
+    return err.code !== 'ESRCH';
+  }
+}
+
+/**
+ * Try to read and parse the lock file JSON. Returns null on any error
+ * (missing, invalid JSON, I/O failure).
+ */
+function readLockFile(lockPath) {
+  try {
+    const raw = fs.readFileSync(lockPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && typeof parsed.pid === 'number') {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function acquireInstallMigrationLock(configDir, { timeoutMs = DEFAULT_LOCK_TIMEOUT_MS } = {}) {
   fs.mkdirSync(configDir, { recursive: true });
   const lockPath = path.join(configDir, INSTALL_MIGRATION_LOCK_NAME);
@@ -214,16 +264,28 @@ function acquireInstallMigrationLock(configDir, { timeoutMs = DEFAULT_LOCK_TIMEO
 
   while (true) {
     let fd = null;
+    let lockCreatedByUs = false;
     try {
       fd = fs.openSync(lockPath, 'wx');
-      fs.writeFileSync(fd, JSON.stringify({
+      // Close the open descriptor before writing so the file handle is
+      // released on Windows before the release closure unlinks it.
+      // Write payload via writeFileSync with the path (not the fd) so we
+      // don't hold an open fd across the lifetime of the lock.
+      fs.closeSync(fd);
+      fd = null;
+      lockCreatedByUs = true; // we own the file; clean it up on any subsequent error
+      fs.writeFileSync(lockPath, JSON.stringify({
         pid: process.pid,
         acquiredAt: new Date().toISOString(),
       }) + '\n');
+      lockCreatedByUs = false; // release closure owns cleanup from here
       return () => {
         const failures = [];
-        try { fs.closeSync(fd); } catch (error) { failures.push(error); }
-        try { fs.rmSync(lockPath, { force: true }); } catch (error) { failures.push(error); }
+        // Use unlinkSync (not rmSync with { force: true }) so EPERM errors
+        // are NOT silently swallowed. On Windows, if the unlink fails
+        // transiently, the error surfaces via releaseError so the caller
+        // can observe and surface it rather than leaving a stale lock.
+        try { fs.unlinkSync(lockPath); } catch (error) { failures.push(error); }
         if (failures.length > 0) {
           const releaseError = new Error(`failed to release installer migration lock: ${lockPath}`);
           releaseError.failures = failures;
@@ -233,11 +295,38 @@ function acquireInstallMigrationLock(configDir, { timeoutMs = DEFAULT_LOCK_TIMEO
     } catch (error) {
       if (fd !== null) {
         try { fs.closeSync(fd); } catch { /* best-effort */ }
-        try { fs.rmSync(lockPath, { force: true }); } catch { /* best-effort */ }
+        try { fs.unlinkSync(lockPath); } catch { /* best-effort */ }
+        fd = null;
+      } else if (lockCreatedByUs) {
+        // fd was closed but writeFileSync threw before we returned the release
+        // closure — the empty lock file is still on disk and must be removed
+        // so it does not orphan as an unreadable (empty/invalid JSON) stale lock.
+        try { fs.unlinkSync(lockPath); } catch { /* best-effort */ }
       }
       if (error && error.code === 'EEXIST') {
+        // Stale-lock reclamation: read the on-disk PID and check liveness.
+        // If the PID is dead (ESRCH) or is our own process (same-process
+        // re-entry caused by rmSync silently swallowing an unlink error on
+        // a previous call in the same invocation — the root cause of #3670),
+        // reclaim the lock by removing the stale file and retrying.
+        const lockData = readLockFile(lockPath);
+        if (lockData !== null) {
+          const holderPid = lockData.pid;
+          const isSameProcess = holderPid === process.pid;
+          const isDeadProcess = !isPidAlive(holderPid);
+          if (isSameProcess || isDeadProcess) {
+            // Reclaim: remove the stale lock and loop back to openSync.
+            // Only continue (retry) when unlink actually succeeds — a silent
+            // continue on reclaim failure recreates the original deadlock:
+            // the lock stays on disk and we spin indefinitely.
+            let reclaimed = false;
+            try { fs.unlinkSync(lockPath); reclaimed = true; } catch { /* unlink failed — fall through to timeout path */ }
+            if (reclaimed) continue;
+          }
+        }
         if (Date.now() - started >= timeoutMs) {
-          throw new Error(`installer migration lock is held: ${lockPath}`);
+          const holderInfo = lockData ? ` (held by pid ${lockData.pid} since ${lockData.acquiredAt})` : '';
+          throw new Error(`installer migration lock is held: ${lockPath}${holderInfo}`);
         }
         sleepSync(Math.min(50, Math.max(1, timeoutMs - (Date.now() - started))));
         continue;
@@ -263,20 +352,6 @@ function isStructurallyEmpty(value) {
   return typeof value === 'object' && Object.keys(value).length === 0;
 }
 
-function writeFileAtomicSync(filePath, content) {
-  const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
-  try {
-    fs.writeFileSync(tmpPath, content, 'utf8');
-    fs.renameSync(tmpPath, filePath);
-  } catch (error) {
-    try {
-      fs.rmSync(tmpPath, { force: true });
-    } catch {
-      // best-effort cleanup only; preserve the original write failure
-    }
-    throw error;
-  }
-}
 
 function journalAction(action, status, extras = {}) {
   const { value, ...safeAction } = action;
@@ -424,8 +499,7 @@ function rollbackAppliedMigrationResult({ configDir, journal, journalPath, rollb
     if (previousInstallStateBytes === null) {
       fs.rmSync(path.join(configDir, INSTALL_STATE_NAME), { force: true });
     } else {
-      fs.mkdirSync(configDir, { recursive: true });
-      writeFileAtomicSync(path.join(configDir, INSTALL_STATE_NAME), previousInstallStateBytes);
+      atomicWriteInstallState(configDir, previousInstallStateBytes);
     }
   } catch (error) {
     failures.push({ relPath: INSTALL_STATE_NAME, error: error.message });
@@ -476,12 +550,12 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
   const rollback = [];
   const installStatePath = path.join(configDir, INSTALL_STATE_NAME);
   const previousInstallStateBytes = fs.existsSync(installStatePath)
-    ? fs.readFileSync(installStatePath)
+    ? fs.readFileSync(installStatePath, 'utf8')
     : null;
 
   try {
     fs.mkdirSync(path.dirname(journalPath), { recursive: true });
-    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2) + '\n', 'utf8');
+    platformWriteSync(journalPath, JSON.stringify(journal, null, 2) + '\n');
 
     for (const action of plan.actions) {
       if (
@@ -517,7 +591,7 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
             rollbackRelPath: path.posix.join(rollbackRootRelPath, normalized),
           }));
         } else {
-          writeFileAtomicSync(fullPath, JSON.stringify(action.value, null, 2) + '\n');
+          platformWriteSync(fullPath, JSON.stringify(action.value, null, 2) + '\n');
           journal.actions.push(journalAction(action, 'rewritten', {
             rollbackRelPath: path.posix.join(rollbackRootRelPath, normalized),
           }));
@@ -542,7 +616,7 @@ function applyInstallerMigrationPlan({ configDir, plan, now = () => new Date().t
       fs.rmSync(fullPath, { force: true });
     }
 
-    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2) + '\n', 'utf8');
+    platformWriteSync(journalPath, JSON.stringify(journal, null, 2) + '\n');
 
     const state = readInstallState(configDir);
     const applied = appliedMigrationIds(state);
