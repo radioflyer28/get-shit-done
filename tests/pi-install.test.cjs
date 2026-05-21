@@ -105,14 +105,50 @@ describe('Pi local install/uninstall', () => {
     assert.ok(fs.existsSync(path.join(targetDir, 'skills', 'gsd-help', 'SKILL.md')));
     assert.ok(fs.existsSync(path.join(targetDir, 'get-shit-done', 'VERSION')));
     assert.ok(fs.existsSync(path.join(targetDir, 'agents')));
+    assert.ok(fs.existsSync(path.join(targetDir, 'extensions', 'gsd-hooks.ts')));
 
     const manifest = writeManifest(targetDir, 'pi');
     assert.ok(Object.keys(manifest.files).some(file => file.startsWith('skills/gsd-help/')), manifest);
+    assert.ok(Object.keys(manifest.files).some(file => file === 'extensions/gsd-hooks.ts'), manifest);
 
     uninstall(false, 'pi');
 
     assert.ok(!fs.existsSync(path.join(targetDir, 'skills', 'gsd-help')), 'Pi skill directory removed');
     assert.ok(!fs.existsSync(path.join(targetDir, 'get-shit-done')), 'get-shit-done removed');
+    assert.ok(!fs.existsSync(path.join(targetDir, 'extensions', 'gsd-hooks.ts')), 'managed Pi extension removed');
+  });
+
+  test('installs Pi-native extension hooks instead of legacy subprocess hooks', () => {
+    install(false, 'pi');
+    const targetDir = path.join(tmpDir, '.pi');
+    const extensionPath = path.join(targetDir, 'extensions', 'gsd-hooks.ts');
+
+    assert.ok(fs.existsSync(extensionPath), 'Pi extension hook file installed');
+    assert.ok(!fs.existsSync(path.join(targetDir, 'hooks')), 'legacy hooks/ directory is not installed for Pi');
+
+    const content = fs.readFileSync(extensionPath, 'utf8');
+    assert.match(content, /export default function\s*\(\s*pi:\s*ExtensionAPI\s*\)/);
+    assert.match(content, /pi\.on\("session_start"/);
+    assert.match(content, /pi\.on\("tool_call"/);
+    assert.match(content, /pi\.on\("tool_result"/);
+    assert.match(content, /READ-BEFORE-EDIT REMINDER/);
+    assert.match(content, /WORKFLOW ADVISORY/);
+    assert.match(content, /PROMPT INJECTION WARNING/);
+    assert.match(content, /READ INJECTION SCAN/);
+  });
+
+  test('removes stale GSD subprocess hooks during Pi install but preserves user hooks', () => {
+    const targetDir = path.join(tmpDir, '.pi');
+    const hooksDir = path.join(targetDir, 'hooks');
+    fs.mkdirSync(hooksDir, { recursive: true });
+    fs.writeFileSync(path.join(hooksDir, 'gsd-read-guard.js'), 'old gsd hook');
+    fs.writeFileSync(path.join(hooksDir, 'user-hook.js'), 'user hook');
+
+    install(false, 'pi');
+
+    assert.ok(!fs.existsSync(path.join(hooksDir, 'gsd-read-guard.js')), 'stale managed hook removed');
+    assert.ok(fs.existsSync(path.join(hooksDir, 'user-hook.js')), 'user hook preserved');
+    assert.ok(fs.existsSync(path.join(targetDir, 'extensions', 'gsd-hooks.ts')), 'Pi extension installed');
   });
 
   test('installed SKILL.md frontmatter conforms to Agent Skills shape', () => {

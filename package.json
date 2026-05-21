@@ -12,6 +12,7 @@
     "commands",
     "get-shit-done",
     "agents",
+    "pi-extensions",
     "hooks",
     "scripts",
     "sdk/src",

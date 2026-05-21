@@ -6828,6 +6828,23 @@ function uninstall(isGlobal, runtime = 'claude') {
     }
   }
 
+  if (isPi) {
+    const extensionsDir = path.join(targetDir, 'extensions');
+    if (fs.existsSync(extensionsDir)) {
+      let extensionCount = 0;
+      for (const file of fs.readdirSync(extensionsDir)) {
+        if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+          fs.unlinkSync(path.join(extensionsDir, file));
+          extensionCount++;
+        }
+      }
+      if (extensionCount > 0) {
+        removedCount++;
+        console.log(`  ${green}✓${reset} Removed ${extensionCount} GSD Pi extension(s)`);
+      }
+    }
+  }
+
   // 5. Remove GSD package.json (CommonJS mode marker)
   const pkgJsonPath = path.join(targetDir, 'package.json');
   if (fs.existsSync(pkgJsonPath)) {
@@ -7251,6 +7268,34 @@ function verifyFileInstalled(filePath, description) {
   return true;
 }
 
+function installPiExtensions(src, targetDir) {
+  const piExtensionsSrc = path.join(src, 'pi-extensions');
+  if (!fs.existsSync(piExtensionsSrc)) {
+    return false;
+  }
+
+  const extensionsDest = path.join(targetDir, 'extensions');
+  fs.mkdirSync(extensionsDest, { recursive: true });
+
+  // Preserve user extensions, but replace managed GSD extension files.
+  for (const file of fs.readdirSync(extensionsDest)) {
+    if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+      fs.unlinkSync(path.join(extensionsDest, file));
+    }
+  }
+
+  for (const entry of fs.readdirSync(piExtensionsSrc, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+    const srcFile = path.join(piExtensionsSrc, entry.name);
+    const destFile = path.join(extensionsDest, entry.name);
+    let content = fs.readFileSync(srcFile, 'utf8');
+    content = content.replace(/\{\{GSD_VERSION\}\}/g, pkg.version);
+    fs.writeFileSync(destFile, content);
+  }
+
+  return verifyInstalled(extensionsDest, 'extensions');
+}
+
 /**
  * Install to the specified directory for a specific runtime
  * @param {boolean} isGlobal - Whether to install globally or locally
@@ -7359,6 +7404,7 @@ function writeManifest(configDir, runtime = 'claude', options = {}) {
   const isTrae = runtime === 'trae';
   const isCline = runtime === 'cline';
   const isHermes = runtime === 'hermes';
+  const isPi = runtime === 'pi';
   const gsdDir = path.join(configDir, 'get-shit-done');
   const commandsDir = path.join(configDir, 'commands', 'gsd');
   const opencodeCommandDir = path.join(configDir, 'command');
@@ -7443,6 +7489,17 @@ function writeManifest(configDir, runtime = 'claude', options = {}) {
       for (const file of fs.readdirSync(hooksDir)) {
         if (file.startsWith('gsd-') && (file.endsWith('.js') || file.endsWith('.sh'))) {
           manifest.files['hooks/' + file] = fileHash(path.join(hooksDir, file));
+        }
+      }
+    }
+  }
+
+  if (isPi) {
+    const extensionsDir = path.join(configDir, 'extensions');
+    if (fs.existsSync(extensionsDir)) {
+      for (const file of fs.readdirSync(extensionsDir)) {
+        if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+          manifest.files['extensions/' + file] = fileHash(path.join(extensionsDir, file));
         }
       }
     }
@@ -8550,7 +8607,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     failures.push('VERSION');
   }
 
-  if (!isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  if (!isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline && !isPi) {
     // Write package.json to force CommonJS mode for GSD scripts
     // Prevents "require is not defined" errors when project has "type": "module"
     // Node.js walks up looking for package.json - this stops inheritance from project
@@ -8560,6 +8617,8 @@ function install(isGlobal, runtime = 'claude', options = {}) {
 
     // Copy hooks from dist/ (bundled with dependencies)
     // Template paths for the target runtime (replaces '.claude' with correct config dir)
+    // NOTE: Pi is excluded here because it installs TypeScript extensions
+    // into extensions/ below rather than subprocess JS/shell hooks.
     const hooksSrc = path.join(src, 'hooks', 'dist');
     if (fs.existsSync(hooksSrc)) {
       const hooksDest = path.join(targetDir, 'hooks');
@@ -8614,6 +8673,38 @@ function install(isGlobal, runtime = 'claude', options = {}) {
         }
       } else {
         failures.push('hooks');
+      }
+    }
+  }
+
+  if (isPi) {
+    if (installPiExtensions(src, targetDir)) {
+      console.log(`  ${green}✓${reset} Installed Pi extensions`);
+    } else {
+      failures.push('extensions');
+    }
+  }
+
+  // Pi migration: remove stale hooks/ directory left by older GSD installs.
+  // Pi renamed its hooks mechanism to extensions/ and GSD JS hooks are
+  // incompatible with Pi's TypeScript ExtensionAPI, so the directory should
+  // not exist at all under the Pi config dir.
+  if (isPi) {
+    const piStaleHooksDir = path.join(targetDir, 'hooks');
+    if (fs.existsSync(piStaleHooksDir)) {
+      const gsdHooks = ['gsd-statusline.js', 'gsd-check-update.js', 'gsd-context-monitor.js', 'gsd-prompt-guard.js', 'gsd-read-guard.js', 'gsd-read-injection-scanner.js', 'gsd-update-banner.js', 'gsd-workflow-guard.js', 'gsd-session-state.sh', 'gsd-validate-commit.sh', 'gsd-phase-boundary.sh'];
+      let staleCount = 0;
+      for (const hook of gsdHooks) {
+        const hookPath = path.join(piStaleHooksDir, hook);
+        try { fs.unlinkSync(hookPath); staleCount++; } catch (e) { /* already gone */ }
+      }
+      // Remove the now-empty hooks/ dir if nothing else lives there
+      try {
+        const remaining = fs.readdirSync(piStaleHooksDir);
+        if (remaining.length === 0) fs.rmdirSync(piStaleHooksDir);
+      } catch (e) { /* ignore */ }
+      if (staleCount > 0) {
+        console.log(`  ${green}✓${reset} Removed ${staleCount} stale GSD hooks from hooks/ (Pi uses extensions/)`);
       }
     }
   }
