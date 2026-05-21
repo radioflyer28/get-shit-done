@@ -36,6 +36,9 @@ const SUMMARIZATION_PATTERNS = [
 ];
 
 const ALL_READ_PATTERNS = [...INJECTION_PATTERNS, ...SUMMARIZATION_PATTERNS];
+const WARNING_CONTEXT_REMAINING = 35;
+const CRITICAL_CONTEXT_REMAINING = 25;
+const CONVENTIONAL_COMMIT_RE = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?:\s.+/;
 
 function toolName(event: any): string {
   return String(event?.toolName || event?.tool_name || "").toLowerCase();
@@ -104,6 +107,18 @@ function isCommunityHooksEnabled(cwd: string): boolean {
   return readGsdConfig(cwd)?.hooks?.community === true;
 }
 
+function getConfigValue(cwd: string, keyPath: string): any {
+  const config = readGsdConfig(cwd);
+  if (!config || typeof config !== "object") return undefined;
+  if (keyPath in config) return config[keyPath];
+  let cursor = config;
+  for (const part of keyPath.split(".")) {
+    if (!cursor || typeof cursor !== "object" || !(part in cursor)) return undefined;
+    cursor = cursor[part];
+  }
+  return cursor;
+}
+
 function scanInjectionPatterns(content: string, patterns = INJECTION_PATTERNS): string[] {
   const findings: string[] = [];
   for (const pattern of patterns) {
@@ -143,6 +158,100 @@ function appendWarningContent(existing: any, warning: string): any {
   if (typeof existing === "string") return `${existing}\n\n${warning}`;
   if (existing == null) return [warningBlock];
   return [existing, warningBlock];
+}
+
+function shellTokens(command: string): string[] {
+  const tokens: string[] = [];
+  const pattern = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^']*)'|(\S+)/g;
+  let match;
+  while ((match = pattern.exec(command)) !== null) {
+    tokens.push(match[1] ?? match[2] ?? match[3] ?? "");
+  }
+  return tokens;
+}
+
+function isEnvAssignment(token: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token);
+}
+
+function isGitToken(token: string): boolean {
+  const normalized = token.replace(/\\/g, "/").toLowerCase();
+  return normalized === "git" || normalized.endsWith("/git") || normalized.endsWith("/git.exe");
+}
+
+function findGitSubcommand(tokens: string[]): string | null {
+  let index = 0;
+  while (index < tokens.length && isEnvAssignment(tokens[index])) index++;
+  if (tokens[index] === "env") {
+    index++;
+    while (index < tokens.length && isEnvAssignment(tokens[index])) index++;
+  }
+  if (!isGitToken(tokens[index] || "")) return null;
+  index++;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+    if (token === "-C" || token === "-c") {
+      index += 2;
+      continue;
+    }
+    if (token.startsWith("--git-dir=") || token.startsWith("--work-tree=")) {
+      index++;
+      continue;
+    }
+    if (token.startsWith("-")) {
+      index++;
+      continue;
+    }
+    return token;
+  }
+  return null;
+}
+
+function commitMessageFromTokens(tokens: string[]): string | null {
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (token === "-m" || token === "--message") {
+      return tokens[index + 1] || "";
+    }
+    if (token.startsWith("-m") && token.length > 2) {
+      return token.slice(2);
+    }
+    if (token.startsWith("--message=")) {
+      return token.slice("--message=".length);
+    }
+  }
+  return null;
+}
+
+function maybeValidateCommitCommand(event: any, ctx: any): any {
+  if (toolName(event) !== "bash") return undefined;
+  const cwd = cwdFrom(ctx, event);
+  if (!isCommunityHooksEnabled(cwd)) return undefined;
+
+  const command = String(toolInput(event).command || "");
+  if (!command) return undefined;
+
+  const tokens = shellTokens(command);
+  if (findGitSubcommand(tokens) !== "commit") return undefined;
+
+  const message = commitMessageFromTokens(tokens);
+  if (!message) return undefined;
+
+  const subject = message.split(/\r?\n/)[0];
+  if (!CONVENTIONAL_COMMIT_RE.test(subject)) {
+    return {
+      block: true,
+      reason: "CONVENTIONAL_COMMITS_VIOLATION: Commit message must follow Conventional Commits: <type>(<scope>): <subject>.",
+    };
+  }
+  if (subject.length > 72) {
+    return {
+      block: true,
+      reason: "COMMIT_SUBJECT_TOO_LONG: Commit subject must be 72 characters or less.",
+    };
+  }
+  return undefined;
 }
 
 function maybeWarnReadBeforeEdit(event: any, ctx: any): void {
@@ -224,6 +333,7 @@ function maybeSessionState(event: any, ctx: any): void {
 
   try {
     ctx?.ui?.setWidget?.("gsd-session-state", lines);
+    ctx?.ui?.setStatus?.("gsd", statePath && fs.existsSync(statePath) ? `GSD: ${configMode} state loaded` : "GSD: no STATE.md");
     ctx?.ui?.notify?.("GSD project state reminder loaded.", "info");
   } catch {
     // Advisory only.
@@ -257,6 +367,78 @@ function maybeScanReadResult(event: any, ctx: any): any {
   return { content: appendWarningContent(event?.content, warning) };
 }
 
+function maybeWarnPhaseBoundary(event: any, ctx: any): any {
+  const name = toolName(event);
+  if (name !== "write" && name !== "edit") return undefined;
+
+  const cwd = cwdFrom(ctx, event);
+  if (!isCommunityHooksEnabled(cwd)) return undefined;
+
+  const filePath = getFilePath(toolInput(event), cwd);
+  if (!filePath || !isPlanningPath(filePath)) return undefined;
+
+  const source = displayPath(filePath, cwd).replace(/\\/g, "/");
+  const warning = `.planning/ file modified: ${source}\nCheck: Should STATE.md be updated to reflect this change?`;
+  notify(ctx, warning);
+  if (event?.content == null) return undefined;
+  return { content: appendWarningContent(event.content, warning) };
+}
+
+function usageNumber(usage: any, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = usage?.[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function maybeWarnContextUsage(event: any, ctx: any): any {
+  if (typeof ctx?.getContextUsage !== "function") return undefined;
+
+  const cwd = cwdFrom(ctx, event);
+  if (getConfigValue(cwd, "hooks.context_warnings") === false) return undefined;
+
+  let usage: any;
+  try {
+    usage = ctx.getContextUsage();
+  } catch {
+    return undefined;
+  }
+  if (!usage) return undefined;
+
+  const remaining = usageNumber(usage, ["remainingPercentage", "remaining_percentage", "remainingPercent"]);
+  if (remaining == null || remaining > WARNING_CONTEXT_REMAINING) return undefined;
+
+  const used = usageNumber(usage, ["usedPercentage", "used_pct", "usedPercent"]) ?? Math.max(0, 100 - remaining);
+  const isCritical = remaining <= CRITICAL_CONTEXT_REMAINING;
+  const isGsdActive = fs.existsSync(path.join(cwd, ".planning", "STATE.md"));
+  const level = isCritical ? "CRITICAL" : "WARNING";
+  const detail = isCritical
+    ? (isGsdActive
+      ? "Context is nearly exhausted. GSD state is tracked in STATE.md; inform the user before starting new complex work."
+      : "Context is nearly exhausted. Inform the user and avoid starting new complex work.")
+    : "Context is getting limited. Avoid unnecessary exploration or starting new complex work.";
+  const warning = `CONTEXT ${level}: Usage at ${used}%. Remaining: ${remaining}%. ${detail}`;
+
+  try {
+    ctx?.ui?.setStatus?.("gsd-context", `${remaining}% remaining`);
+  } catch {
+    // Advisory only.
+  }
+  notify(ctx, warning);
+  if (event?.content == null) return undefined;
+  return { content: appendWarningContent(event.content, warning) };
+}
+
+function mergeToolResultPatch(event: any, current: any, next: any): any {
+  if (!next || typeof next !== "object") return current;
+  const merged = { ...(current || {}), ...next };
+  if ("content" in next) {
+    event.content = next.content;
+  }
+  return merged;
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (event, ctx) => {
     try {
@@ -271,6 +453,7 @@ export default function (pi: ExtensionAPI) {
       maybeWarnReadBeforeEdit(event, ctx);
       maybeWarnWorkflowGuard(event, ctx);
       maybeWarnPromptInjectionWrite(event, ctx);
+      return maybeValidateCommitCommand(event, ctx);
     } catch {
       // Advisory only.
     }
@@ -278,7 +461,11 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_result", async (event, ctx) => {
     try {
-      return maybeScanReadResult(event, ctx);
+      let patch: any;
+      patch = mergeToolResultPatch(event, patch, maybeScanReadResult(event, ctx));
+      patch = mergeToolResultPatch(event, patch, maybeWarnPhaseBoundary(event, ctx));
+      patch = mergeToolResultPatch(event, patch, maybeWarnContextUsage(event, ctx));
+      return patch;
     } catch {
       return undefined;
     }

@@ -748,7 +748,7 @@ The migration-specific ownership and source snapshots live in
 | Trae | `~/.trae` | `./.trae` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Rule references under `rules/`; no GSD hooks |
 | Qwen Code | `~/.qwen` | `./.qwen` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
 | Hermes Agent | `~/.hermes` | `./.hermes` | `skills/gsd/DESCRIPTION.md` plus `skills/gsd/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
-| Pi | `~/.pi/agent` | `./.pi` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` for optional `pi-subagents` | No GSD hooks or statusline |
+| Pi | `~/.pi/agent` | `./.pi` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` for optional `pi-subagents` | Pi-native TypeScript extensions in `extensions/` provide GSD guardrails/status where Pi exposes matching events |
 | CodeBuddy | `~/.codebuddy` | `./.codebuddy` | `skills/gsd-*/SKILL.md` | `agents/gsd-*.md` | Common GSD settings and hook entries where supported |
 | Cline | `~/.cline` | project root | `.clinerules` | Rules only | No GSD hooks or statusline |
 

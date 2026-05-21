@@ -1293,6 +1293,8 @@ Pi uses the Agent Skills standard and loads skills from `~/.pi/agent/skills/` gl
 npx get-shit-done-cc@latest --pi --global
 ```
 
+The Pi installer also installs GSD's Pi-native TypeScript extension to `~/.pi/agent/extensions/gsd-hooks.ts` globally or `.pi/extensions/gsd-hooks.ts` locally. This extension maps the core GSD runtime guardrails onto Pi's extension events: session state/status orientation, read-before-edit guidance, prompt-injection warnings, read-result scanning, opt-in workflow guard reminders, opt-in commit validation, phase-boundary reminders, and context-pressure warnings. It does not copy Claude/Codex subprocess hooks into Pi.
+
 For GSD's parallel plan, execute, review, map-codebase, docs-update, and manager flows, install Pi's optional subagent extension:
 
 ```bash

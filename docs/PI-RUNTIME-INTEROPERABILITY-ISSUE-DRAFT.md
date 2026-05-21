@@ -1,6 +1,8 @@
 # Feature Request Draft: Pi Runtime Interoperability For GSD v1 Projects
 
 > Draft only. Do not submit until reviewed.
+>
+> Status note: this draft originally separated basic Pi runtime interoperability from hook parity. The follow-up Pi extension layer has since been implemented in `pi-extensions/gsd-hooks.ts`, so references below to "no Pi extensions" describe the original interoperability slice, not the current repository state.
 
 ## Pre-submission checklist
 
