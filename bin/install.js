@@ -1596,13 +1596,15 @@ function getPiSubagentsSkillAdapterHeader() {
   return `<pi_subagents_adapter>
 Pi runtime adapter for GSD workflows:
 
-- pi-subagents is optional. If the \`subagent\` tool is unavailable, do not fail the workflow; follow the workflow's existing sequential/inline fallback path.
-- Single Claude-style \`Agent(subagent_type="x", prompt="y")\` calls map to \`subagent({ agent: "x", task: "y", context: "fresh" })\`.
+- pi-subagents is optional. If the \`subagent\` tool is unavailable, do not call \`subagent\`, \`Agent\`, or \`TaskOutput\`; execute the workflow sequentially inline using the workflow's fallback path and state that Pi subagents are not available.
+- Do not simulate background work with sleep loops, busy polling, placeholder files, or fake run ids. Do not create fake run ids. If no real async run id is returned, continue inline or ask the user how to proceed.
+- Single Claude-style \`Agent(subagent_type="x", prompt="y")\` calls map to \`subagent({ agent: "x", task: "y", context: "fresh" })\`. Example: \`subagent({ agent: "gsd-executor", task: "Execute plan X", context: "fresh" })\`.
 - If the workflow has only a model string, the installed Pi agent frontmatter supplies model/thinking defaults. If you need fresh config at dispatch time, call \`gsd-sdk query resolve-model <agent>\`; its JSON may include \`model\` and \`thinking\`.
 - Include \`model\` and \`thinking\` in the \`subagent(...)\` call only when the workflow/config resolved explicit values. Omit model-like fields for \`inherit\`, empty, or missing values.
-- \`run_in_background=true\` maps to \`async: true\`. Poll async work with \`subagent({ action: "status", id: "<run-id>" })\`.
+- \`run_in_background=true\` maps to \`async: true\`. Example: \`subagent({ agent: "gsd-executor", task: "Execute plan X", context: "fresh", async: true })\`. Check all active async work with \`subagent({ action: "status" })\`; check one run with \`subagent({ action: "status", id: "<run-id>" })\`.
 - \`TaskOutput\` polling maps to \`subagent({ action: "status", id: "<run-id>" })\`; for grouped runs, inspect each child result in that status output before continuing.
-- Parallel GSD waves should use pi-subagents grouped tasks only when the \`subagent\` tool is available, project parallelization is enabled, and worktrees are enabled. Use \`subagent({ tasks: [{ agent: "gsd-executor", task: "..." }], context: "fresh", worktree: true })\` for isolated parallel execution.
+- Parallel GSD waves should use pi-subagents grouped tasks only when the \`subagent\` tool is available, project parallelization is enabled, and worktrees are enabled. Use \`subagent({ tasks: [{ agent: "gsd-executor", task: "Execute plan A" }, { agent: "gsd-executor", task: "Execute plan B" }], context: "fresh", worktree: true })\` for isolated parallel execution.
+- Chained GSD workflows map to \`subagent({ chain: [{ agent: "gsd-phase-researcher", task: "Research phase" }, { agent: "gsd-planner" }] })\`. For fan-out/fan-in chains, use a \`parallel\` step inside \`chain\` rather than launching unrelated ad hoc children.
 - When worktrees are disabled or a plan must run on the main worktree, dispatch one task at a time or execute inline exactly as the workflow's sequential fallback says.
 - Child agents must not recursively delegate. Installed GSD Pi agents set \`maxSubagentDepth: 0\`; respect that boundary.
 </pi_subagents_adapter>`;

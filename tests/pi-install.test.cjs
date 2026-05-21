@@ -211,6 +211,9 @@ describe('Pi local install/uninstall', () => {
       assert.ok(content.includes('subagent({ agent: "x", task: "y", context: "fresh" })'), `${skill} documents Agent mapping`);
       assert.ok(content.includes('run_in_background=true'), `${skill} documents async mapping`);
       assert.ok(content.includes('TaskOutput'), `${skill} documents status polling mapping`);
+      assert.ok(content.includes('subagent({ tasks: [{ agent: "gsd-executor", task: "Execute plan A" }, { agent: "gsd-executor", task: "Execute plan B" }], context: "fresh", worktree: true })'), `${skill} documents grouped worktree execution`);
+      assert.ok(content.includes('subagent({ chain: [{ agent: "gsd-phase-researcher", task: "Research phase" }, { agent: "gsd-planner" }] })'), `${skill} documents chain execution`);
+      assert.ok(content.includes('If the `subagent` tool is unavailable, do not call `subagent`, `Agent`, or `TaskOutput`'), `${skill} documents no-tool fallback`);
       assert.equal((content.match(/<pi_subagents_adapter>/g) || []).length, 1, `${skill} adapter injected once`);
     }
   });

@@ -1303,6 +1303,8 @@ pi install npm:pi-subagents
 
 GSD does not install this package for you. If the `subagent` tool is available, Pi skills map GSD's `Agent(...)`, background, parallel-wave, and `TaskOutput` patterns onto pi-subagents. If it is not available, the workflows use the same sequential inline fallback behavior as other runtimes without a reliable subagent API.
 
+With `pi-subagents` installed, GSD's Pi adapter uses Pi-native orchestration shapes: single-agent calls use `subagent({ agent, task, context: "fresh" })`, background work uses `async: true`, grouped phase waves use `tasks: [...]` with `worktree: true` when worktree isolation is enabled, chains use `chain: [...]`, and completion checks use `subagent({ action: "status" })` or `subagent({ action: "status", id })`. If the `subagent` tool is absent, Pi skills must not call `subagent`, `Agent`, or `TaskOutput`; they continue inline instead of inventing fake run IDs or background polling.
+
 After restarting Pi, run:
 
 ```text
