@@ -1616,6 +1616,30 @@ function injectPiSubagentsSkillAdapter(content) {
   return `${content.trimEnd()}\n\n${adapter}\n`;
 }
 
+function convertGsdCommandMentionsToPiSkillCommands(content) {
+  let converted = content;
+  converted = converted.replace(/(?<![A-Za-z0-9./])\/gsd:([a-z0-9-]+)(?![A-Za-z0-9/-])(?!\.[a-z])/g, '/skill:gsd-$1');
+  converted = converted.replace(/(?<![A-Za-z0-9./])\/gsd-([a-z0-9-]+)(?![A-Za-z0-9/-])(?!\.[a-z])/g, '/skill:gsd-$1');
+  return converted;
+}
+
+function convertClaudeToPiContent(content) {
+  let converted = content;
+  converted = converted.replace(/CLAUDE\.md/g, 'AGENTS.md');
+  converted = converted.replace(/\bClaude Code\b/g, 'Pi');
+  converted = converted.replace(/~\/\.claude\//g, '~/.pi/agent/');
+  converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.pi/agent/');
+  converted = converted.replace(/~\/\.claude\b/g, '~/.pi/agent');
+  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.pi/agent');
+  converted = converted.replace(/\.claude\//g, '.pi/');
+  converted = converted.replace(/\bAskUserQuestion\b/g, 'direct Pi user prompt');
+  converted = converted.replace(/\bask_user\b/g, 'direct Pi user prompt');
+  converted = converted.replace(/\bCODEX RUNTIME\b/g, 'PI RUNTIME');
+  converted = converted.replace(/\bCodex runtime\b/g, 'Pi runtime');
+  converted = convertGsdCommandMentionsToPiSkillCommands(converted);
+  return converted;
+}
+
 /**
  * Convert a Claude agent (.md) to a Copilot agent (.agent.md).
  * Applies tool mapping + deduplication, formats tools as JSON array.
@@ -2481,14 +2505,7 @@ purpose: ${toSingleLine(description)}
  * by default so child Pi sessions receive Pi's normal builtin tool surface.
  */
 function convertClaudeAgentToPiSubagentAgent(content, opts = {}) {
-  let converted = content;
-  converted = converted.replace(/CLAUDE\.md/g, 'AGENTS.md');
-  converted = converted.replace(/\bClaude Code\b/g, 'Pi');
-  converted = converted.replace(/~\/\.claude\//g, '~/.pi/agent/');
-  converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.pi/agent/');
-  converted = converted.replace(/~\/\.claude\b/g, '~/.pi/agent');
-  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.pi/agent');
-  converted = converted.replace(/\.claude\//g, '.pi/');
+  let converted = convertClaudeToPiContent(content);
 
   const { frontmatter, body } = extractFrontmatterAndBody(converted);
   if (!frontmatter) return converted;
@@ -5926,9 +5943,7 @@ function copyCommandsAsClaudeSkills(srcDir, skillsDir, prefix, pathPrefix, runti
       // Pi uses the Agent Skills standard and loads AGENTS.md as its native
       // project instruction file; keep the skill body on Pi vocabulary.
       if (runtime === 'pi') {
-        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
-        content = content.replace(/\bClaude Code\b/g, 'Pi');
-        content = content.replace(/\.claude\//g, '.pi/');
+        content = convertClaudeToPiContent(content);
       }
       content = processAttribution(content, getCommitAttribution(runtime));
       content = convertClaudeCommandToClaudeSkill(content, skillName, runtime);
@@ -6214,9 +6229,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         content = content.replace(/\.claude\//g, '.hermes/');
         fs.writeFileSync(destPath, content);
       } else if (isPi) {
-        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
-        content = content.replace(/\bClaude Code\b/g, 'Pi');
-        content = content.replace(/\.claude\//g, '.pi/');
+        content = convertClaudeToPiContent(content);
         fs.writeFileSync(destPath, content);
       } else {
         fs.writeFileSync(destPath, content);
@@ -6278,10 +6291,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
       fs.writeFileSync(destPath, jsContent);
     } else if (isPi && (entry.name.endsWith('.cjs') || entry.name.endsWith('.js'))) {
       let jsContent = fs.readFileSync(srcPath, 'utf8');
-      jsContent = jsContent.replace(/\.claude\/skills\//g, '.pi/skills/');
-      jsContent = jsContent.replace(/\.claude\//g, '.pi/');
-      jsContent = jsContent.replace(/CLAUDE\.md/g, 'AGENTS.md');
-      jsContent = jsContent.replace(/\bClaude Code\b/g, 'Pi');
+      jsContent = convertClaudeToPiContent(jsContent);
       fs.writeFileSync(destPath, jsContent);
     } else {
       fs.copyFileSync(srcPath, destPath);
