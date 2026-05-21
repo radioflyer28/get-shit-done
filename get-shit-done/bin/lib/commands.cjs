@@ -240,12 +240,12 @@ function cmdResolveModel(cwd, agentType, raw) {
   const config = loadConfig(cwd);
   const profile = config.model_profile || 'balanced';
   const model = resolveModelInternal(cwd, agentType);
+  const reasoningEffort = resolveReasoningEffortInternal(cwd, agentType);
 
   const agentModels = MODEL_PROFILES[agentType];
   const result = agentModels
     ? { model, profile }
     : { model, profile, unknown_agent: true };
-  const reasoningEffort = resolveReasoningEffortInternal(cwd, agentType);
   const thinking = resolveThinkingLevelInternal(cwd, agentType);
   if (reasoningEffort) result.reasoning_effort = reasoningEffort;
   if (thinking) result.thinking = thinking;

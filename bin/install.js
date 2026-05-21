@@ -1599,13 +1599,15 @@ function getPiSubagentsSkillAdapterHeader() {
   return `<pi_subagents_adapter>
 Pi runtime adapter for GSD workflows:
 
-- pi-subagents is optional. If the \`subagent\` tool is unavailable, do not fail the workflow; follow the workflow's existing sequential/inline fallback path.
-- Single Claude-style \`Agent(subagent_type="x", prompt="y")\` calls map to \`subagent({ agent: "x", task: "y", context: "fresh" })\`.
+- pi-subagents is optional. If the \`subagent\` tool is unavailable, do not call \`subagent\`, \`Agent\`, or \`TaskOutput\`; execute the workflow sequentially inline using the workflow's fallback path and state that Pi subagents are not available.
+- Do not simulate background work with sleep loops, busy polling, placeholder files, or fake run ids. Do not create fake run ids. If no real async run id is returned, continue inline or ask the user how to proceed.
+- Single Claude-style \`Agent(subagent_type="x", prompt="y")\` calls map to \`subagent({ agent: "x", task: "y", context: "fresh" })\`. Example: \`subagent({ agent: "gsd-executor", task: "Execute plan X", context: "fresh" })\`.
 - If the workflow has only a model string, the installed Pi agent frontmatter supplies model/thinking defaults. If you need fresh config at dispatch time, call \`gsd-sdk query resolve-model <agent>\`; its JSON may include \`model\` and \`thinking\`.
 - Include \`model\` and \`thinking\` in the \`subagent(...)\` call only when the workflow/config resolved explicit values. Omit model-like fields for \`inherit\`, empty, or missing values.
-- \`run_in_background=true\` maps to \`async: true\`. Poll async work with \`subagent({ action: "status", id: "<run-id>" })\`.
+- \`run_in_background=true\` maps to \`async: true\`. Example: \`subagent({ agent: "gsd-executor", task: "Execute plan X", context: "fresh", async: true })\`. Check all active async work with \`subagent({ action: "status" })\`; check one run with \`subagent({ action: "status", id: "<run-id>" })\`.
 - \`TaskOutput\` polling maps to \`subagent({ action: "status", id: "<run-id>" })\`; for grouped runs, inspect each child result in that status output before continuing.
-- Parallel GSD waves should use pi-subagents grouped tasks only when the \`subagent\` tool is available, project parallelization is enabled, and worktrees are enabled. Use \`subagent({ tasks: [{ agent: "gsd-executor", task: "..." }], context: "fresh", worktree: true })\` for isolated parallel execution.
+- Parallel GSD waves should use pi-subagents grouped tasks only when the \`subagent\` tool is available, project parallelization is enabled, and worktrees are enabled. Use \`subagent({ tasks: [{ agent: "gsd-executor", task: "Execute plan A" }, { agent: "gsd-executor", task: "Execute plan B" }], context: "fresh", worktree: true })\` for isolated parallel execution.
+- Chained GSD workflows map to \`subagent({ chain: [{ agent: "gsd-phase-researcher", task: "Research phase" }, { agent: "gsd-planner" }] })\`. For fan-out/fan-in chains, use a \`parallel\` step inside \`chain\` rather than launching unrelated ad hoc children.
 - When worktrees are disabled or a plan must run on the main worktree, dispatch one task at a time or execute inline exactly as the workflow's sequential fallback says.
 - Child agents must not recursively delegate. Installed GSD Pi agents set \`maxSubagentDepth: 0\`; respect that boundary.
 </pi_subagents_adapter>`;
@@ -1615,6 +1617,30 @@ function injectPiSubagentsSkillAdapter(content) {
   if (!content || content.includes('<pi_subagents_adapter>')) return content;
   const adapter = getPiSubagentsSkillAdapterHeader();
   return `${content.trimEnd()}\n\n${adapter}\n`;
+}
+
+function convertGsdCommandMentionsToPiSkillCommands(content) {
+  let converted = content;
+  converted = converted.replace(/(?<![A-Za-z0-9./])\/gsd:([a-z0-9-]+)(?![A-Za-z0-9/-])(?!\.[a-z])/g, '/skill:gsd-$1');
+  converted = converted.replace(/(?<![A-Za-z0-9./])\/gsd-([a-z0-9-]+)(?![A-Za-z0-9/-])(?!\.[a-z])/g, '/skill:gsd-$1');
+  return converted;
+}
+
+function convertClaudeToPiContent(content) {
+  let converted = content;
+  converted = converted.replace(/CLAUDE\.md/g, 'AGENTS.md');
+  converted = converted.replace(/\bClaude Code\b/g, 'Pi');
+  converted = converted.replace(/~\/\.claude\//g, '~/.pi/agent/');
+  converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.pi/agent/');
+  converted = converted.replace(/~\/\.claude\b/g, '~/.pi/agent');
+  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.pi/agent');
+  converted = converted.replace(/\.claude\//g, '.pi/');
+  converted = converted.replace(/\bAskUserQuestion\b/g, 'direct Pi user prompt');
+  converted = converted.replace(/\bask_user\b/g, 'direct Pi user prompt');
+  converted = converted.replace(/\bCODEX RUNTIME\b/g, 'PI RUNTIME');
+  converted = converted.replace(/\bCodex runtime\b/g, 'Pi runtime');
+  converted = convertGsdCommandMentionsToPiSkillCommands(converted);
+  return converted;
 }
 
 /**
@@ -2407,7 +2433,7 @@ Direct mapping:
 - \`Agent(model="...")\` / \`Task(model="...")\` → pass \`model="..."\` to \`spawn_agent\`
 - \`reasoning_effort="low|medium|high|xhigh"\` → pass \`reasoning_effort\` to \`spawn_agent\`
   when present. If a workflow does not provide inline model settings, rely on
-  the resolved per-agent model embedded in the installed agent \`.toml\`.
+  the resolved per-agent model embedded in the installed agent \`.toml\`; do not invent one-off effort literals in workflow text.
 - \`fork_context: false\` by default — GSD agents load their own context via \`<files_to_read>\` blocks
 - \`Task(isolation="worktree")\` / \`Agent(isolation="worktree")\` → no direct Codex mapping.
   Codex \`spawn_agent\` does not create or bind a git worktree automatically.
@@ -2492,14 +2518,7 @@ purpose: ${toSingleLine(description)}
  * by default so child Pi sessions receive Pi's normal builtin tool surface.
  */
 function convertClaudeAgentToPiSubagentAgent(content, opts = {}) {
-  let converted = content;
-  converted = converted.replace(/CLAUDE\.md/g, 'AGENTS.md');
-  converted = converted.replace(/\bClaude Code\b/g, 'Pi');
-  converted = converted.replace(/~\/\.claude\//g, '~/.pi/agent/');
-  converted = converted.replace(/\$HOME\/\.claude\//g, '$HOME/.pi/agent/');
-  converted = converted.replace(/~\/\.claude\b/g, '~/.pi/agent');
-  converted = converted.replace(/\$HOME\/\.claude\b/g, '$HOME/.pi/agent');
-  converted = converted.replace(/\.claude\//g, '.pi/');
+  let converted = convertClaudeToPiContent(content);
 
   const { frontmatter, body } = extractFrontmatterAndBody(converted);
   if (!frontmatter) return converted;
@@ -5937,9 +5956,7 @@ function copyCommandsAsClaudeSkills(srcDir, skillsDir, prefix, pathPrefix, runti
       // Pi uses the Agent Skills standard and loads AGENTS.md as its native
       // project instruction file; keep the skill body on Pi vocabulary.
       if (runtime === 'pi') {
-        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
-        content = content.replace(/\bClaude Code\b/g, 'Pi');
-        content = content.replace(/\.claude\//g, '.pi/');
+        content = convertClaudeToPiContent(content);
       }
       content = processAttribution(content, getCommitAttribution(runtime));
       content = convertClaudeCommandToClaudeSkill(content, skillName, runtime);
@@ -6225,9 +6242,7 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         content = content.replace(/\.claude\//g, '.hermes/');
         fs.writeFileSync(destPath, content);
       } else if (isPi) {
-        content = content.replace(/CLAUDE\.md/g, 'AGENTS.md');
-        content = content.replace(/\bClaude Code\b/g, 'Pi');
-        content = content.replace(/\.claude\//g, '.pi/');
+        content = convertClaudeToPiContent(content);
         fs.writeFileSync(destPath, content);
       } else {
         fs.writeFileSync(destPath, content);
@@ -6289,11 +6304,12 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
       fs.writeFileSync(destPath, jsContent);
     } else if (isPi && (entry.name.endsWith('.cjs') || entry.name.endsWith('.js'))) {
       let jsContent = fs.readFileSync(srcPath, 'utf8');
-      jsContent = jsContent.replace(/\.claude\/skills\//g, '.pi/skills/');
-      jsContent = jsContent.replace(/\.claude\//g, '.pi/');
-      jsContent = jsContent.replace(/CLAUDE\.md/g, 'AGENTS.md');
-      jsContent = jsContent.replace(/\bClaude Code\b/g, 'Pi');
+      jsContent = convertClaudeToPiContent(jsContent);
       fs.writeFileSync(destPath, jsContent);
+    } else if (isPi && entry.name.endsWith('.json')) {
+      let jsonContent = fs.readFileSync(srcPath, 'utf8');
+      jsonContent = convertClaudeToPiContent(jsonContent);
+      fs.writeFileSync(destPath, jsonContent);
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
@@ -6841,6 +6857,23 @@ function uninstall(isGlobal, runtime = 'claude') {
     }
   }
 
+  // 4b. Remove GSD Pi extensions
+  const extensionsDir = path.join(targetDir, 'extensions');
+  if (fs.existsSync(extensionsDir)) {
+    const files = fs.readdirSync(extensionsDir);
+    let extensionCount = 0;
+    for (const file of files) {
+      if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+        fs.unlinkSync(path.join(extensionsDir, file));
+        extensionCount++;
+      }
+    }
+    if (extensionCount > 0) {
+      removedCount++;
+      console.log(`  ${green}✓${reset} Removed ${extensionCount} GSD Pi extension(s)`);
+    }
+  }
+
   // 5. Remove GSD package.json (CommonJS mode marker)
   const pkgJsonPath = path.join(targetDir, 'package.json');
   if (fs.existsSync(pkgJsonPath)) {
@@ -7253,6 +7286,34 @@ function verifyInstalled(dirPath, description) {
   return true;
 }
 
+function installPiExtensions(src, targetDir) {
+  const piExtensionsSrc = path.join(src, 'pi-extensions');
+  if (!fs.existsSync(piExtensionsSrc)) {
+    return false;
+  }
+
+  const extensionsDest = path.join(targetDir, 'extensions');
+  fs.mkdirSync(extensionsDest, { recursive: true });
+
+  // Preserve user extensions, but replace managed GSD extension files.
+  for (const file of fs.readdirSync(extensionsDest)) {
+    if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+      fs.unlinkSync(path.join(extensionsDest, file));
+    }
+  }
+
+  for (const entry of fs.readdirSync(piExtensionsSrc, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.ts')) continue;
+    const srcFile = path.join(piExtensionsSrc, entry.name);
+    const destFile = path.join(extensionsDest, entry.name);
+    let content = fs.readFileSync(srcFile, 'utf8');
+    content = content.replace(/\{\{GSD_VERSION\}\}/g, pkg.version);
+    fs.writeFileSync(destFile, content);
+  }
+
+  return verifyInstalled(extensionsDest, 'extensions');
+}
+
 /**
  * Verify a file exists
  */
@@ -7372,6 +7433,7 @@ function writeManifest(configDir, runtime = 'claude', options = {}) {
   const isTrae = runtime === 'trae';
   const isCline = runtime === 'cline';
   const isHermes = runtime === 'hermes';
+  const isPi = runtime === 'pi';
   const gsdDir = path.join(configDir, 'get-shit-done');
   const commandsDir = path.join(configDir, 'commands', 'gsd');
   const opencodeCommandDir = path.join(configDir, 'command');
@@ -7449,13 +7511,24 @@ function writeManifest(configDir, runtime = 'claude', options = {}) {
   }
 
   // Track hook files so saveLocalPatches() can detect user modifications
-  // Hooks are only installed for runtimes that use settings.json (not Codex/Copilot/Cline)
-  if (!isCodex && !isCopilot && !isCline) {
+  // Hooks are only installed for runtimes that use settings.json (not Codex/Copilot/Pi/Cline)
+  if (!isCodex && !isCopilot && !isPi && !isCline) {
     const hooksDir = path.join(configDir, 'hooks');
     if (fs.existsSync(hooksDir)) {
       for (const file of fs.readdirSync(hooksDir)) {
         if (file.startsWith('gsd-') && (file.endsWith('.js') || file.endsWith('.sh'))) {
           manifest.files['hooks/' + file] = fileHash(path.join(hooksDir, file));
+        }
+      }
+    }
+  }
+
+  if (isPi) {
+    const extensionsDir = path.join(configDir, 'extensions');
+    if (fs.existsSync(extensionsDir)) {
+      for (const file of fs.readdirSync(extensionsDir)) {
+        if (file.startsWith('gsd-') && file.endsWith('.ts')) {
+          manifest.files['extensions/' + file] = fileHash(path.join(extensionsDir, file));
         }
       }
     }
@@ -8563,7 +8636,7 @@ function install(isGlobal, runtime = 'claude', options = {}) {
     failures.push('VERSION');
   }
 
-  if (!isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  if (!isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline && !isPi) {
     // Write package.json to force CommonJS mode for GSD scripts
     // Prevents "require is not defined" errors when project has "type": "module"
     // Node.js walks up looking for package.json - this stops inheritance from project
@@ -8627,6 +8700,36 @@ function install(isGlobal, runtime = 'claude', options = {}) {
         }
       } else {
         failures.push('hooks');
+      }
+    }
+  }
+
+  if (isPi) {
+    if (installPiExtensions(src, targetDir)) {
+      console.log(`  ${green}✓${reset} Installed Pi extensions`);
+    } else {
+      failures.push('extensions');
+    }
+  }
+
+  // Pi migration: remove stale hooks/ directory left by older GSD installs.
+  // Pi renamed its hooks mechanism to extensions/ and GSD JS hooks are
+  // incompatible with Pi's TypeScript ExtensionAPI.
+  if (isPi) {
+    const piStaleHooksDir = path.join(targetDir, 'hooks');
+    if (fs.existsSync(piStaleHooksDir)) {
+      const gsdHooks = ['gsd-statusline.js', 'gsd-check-update.js', 'gsd-context-monitor.js', 'gsd-prompt-guard.js', 'gsd-read-guard.js', 'gsd-read-injection-scanner.js', 'gsd-update-banner.js', 'gsd-workflow-guard.js', 'gsd-session-state.sh', 'gsd-validate-commit.sh', 'gsd-phase-boundary.sh'];
+      let staleCount = 0;
+      for (const hook of gsdHooks) {
+        const hookPath = path.join(piStaleHooksDir, hook);
+        try { fs.unlinkSync(hookPath); staleCount++; } catch (e) { /* already gone */ }
+      }
+      try {
+        const remaining = fs.readdirSync(piStaleHooksDir);
+        if (remaining.length === 0) fs.rmdirSync(piStaleHooksDir);
+      } catch (e) { /* ignore */ }
+      if (staleCount > 0) {
+        console.log(`  ${green}✓${reset} Removed ${staleCount} stale GSD hooks from hooks/ (Pi uses extensions/)`);
       }
     }
   }

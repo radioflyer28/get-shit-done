@@ -208,8 +208,75 @@ describe('resolveModel', () => {
     const planner = (await resolveModel(['gsd-planner'], tmpDir)).data as Record<string, unknown>;
     const executor = (await resolveModel(['gsd-executor'], tmpDir)).data as Record<string, unknown>;
 
-    expect(planner).toMatchObject({ model: 'gpt-5.5', profile: 'balanced' });
-    expect(executor).toMatchObject({ model: 'gpt-5.3-codex', profile: 'balanced' });
+    expect(planner).toMatchObject({ model: 'gpt-5.5', profile: 'balanced', reasoning_effort: 'high' });
+    expect(executor).toMatchObject({ model: 'gpt-5.3-codex', profile: 'balanced', reasoning_effort: 'medium' });
+  });
+
+  it('returns runtime reasoning_effort from the same phase-tier source as model', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        model_profile: 'budget',
+        runtime: 'codex',
+        models: { execution: 'opus' },
+      }),
+    );
+
+    const executor = (await resolveModel(['gsd-executor'], tmpDir)).data as Record<string, unknown>;
+
+    expect(executor).toMatchObject({
+      model: 'gpt-5.4',
+      profile: 'budget',
+      reasoning_effort: 'xhigh',
+    });
+  });
+
+  it('runtime pi returns openai-codex model plus thinking level', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        model_profile: 'balanced',
+        runtime: 'pi',
+        resolve_model_ids: 'omit',
+      }),
+    );
+
+    const planner = (await resolveModel(['gsd-planner'], tmpDir)).data as Record<string, unknown>;
+    const executor = (await resolveModel(['gsd-executor'], tmpDir)).data as Record<string, unknown>;
+
+    expect(planner).toMatchObject({
+      model: 'openai-codex/gpt-5.5',
+      profile: 'balanced',
+      thinking: 'high',
+    });
+    expect(executor).toMatchObject({
+      model: 'openai-codex/gpt-5.3-codex',
+      profile: 'balanced',
+      thinking: 'medium',
+    });
+  });
+
+  it('runtime pi object override merges thinking with built-in model', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        model_profile: 'balanced',
+        runtime: 'pi',
+        model_profile_overrides: {
+          pi: { opus: { thinking: 'medium' } },
+        },
+      }),
+    );
+
+    const planner = (await resolveModel(['gsd-planner'], tmpDir)).data as Record<string, unknown>;
+    expect(planner).toMatchObject({
+      model: 'openai-codex/gpt-5.5',
+      profile: 'balanced',
+      thinking: 'medium',
+    });
   });
 
   it('runtime pi returns openai-codex model plus thinking level', async () => {

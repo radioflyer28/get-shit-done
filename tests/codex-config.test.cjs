@@ -135,6 +135,8 @@ describe('getCodexSkillAdapterHeader', () => {
     assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent syntax');
     assert.ok(result.includes('Task(subagent_type="X", prompt="Y")'), 'maps Task syntax');
     assert.ok(result.includes('agent_type'), 'maps subagent_type to agent_type');
+    assert.ok(result.includes('reasoning_effort'), 'documents reasoning_effort transport');
+    assert.ok(result.includes('do not invent one-off effort literals'), 'keeps effort policy centralized');
     assert.ok(result.includes('fork_context'), 'documents fork_context default');
     assert.ok(result.includes('Agent(subagent_type="X", prompt="Y")'), 'maps Agent to spawn_agent');
     assert.ok(result.includes('run_in_background=true'), 'documents background fan-out');

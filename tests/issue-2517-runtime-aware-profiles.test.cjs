@@ -247,6 +247,52 @@ describe('runtime "pi" — Pi tier resolution with thinking levels', () => {
   });
 });
 
+// ─── runtime: "pi" — resolves tiers to Pi/openai-codex IDs + thinking ───────
+describe('runtime "pi" — Pi tier resolution with thinking levels', () => {
+  let tmpDir;
+  beforeEach(() => { isolateHome(); tmpDir = createTempProject(); _resetRuntimeWarningCacheForTests(); });
+  afterEach(() => { cleanup(tmpDir); restoreHome(); });
+
+  test('opus tier -> openai-codex/gpt-5.5 with thinking high', () => {
+    writeConfig(tmpDir, { runtime: 'pi', model_profile: 'quality' });
+    assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-planner'), 'openai-codex/gpt-5.5');
+    assert.strictEqual(resolveThinkingLevelInternal(tmpDir, 'gsd-planner'), 'high');
+    assert.strictEqual(resolveReasoningEffortInternal(tmpDir, 'gsd-planner'), null);
+  });
+
+  test('sonnet tier -> openai-codex/gpt-5.3-codex with thinking medium', () => {
+    writeConfig(tmpDir, { runtime: 'pi', model_profile: 'balanced' });
+    assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-executor'), 'openai-codex/gpt-5.3-codex');
+    assert.strictEqual(resolveThinkingLevelInternal(tmpDir, 'gsd-executor'), 'medium');
+  });
+
+  test('haiku tier -> openai-codex/gpt-5.4-mini with thinking low', () => {
+    writeConfig(tmpDir, { runtime: 'pi', model_profile: 'budget' });
+    assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-codebase-mapper'), 'openai-codex/gpt-5.4-mini');
+    assert.strictEqual(resolveThinkingLevelInternal(tmpDir, 'gsd-codebase-mapper'), 'low');
+  });
+
+  test('override merging keeps Pi thinking when shorthand overrides model', () => {
+    writeConfig(tmpDir, {
+      runtime: 'pi',
+      model_profile: 'quality',
+      model_profile_overrides: { pi: { opus: 'openai-codex/gpt-5.5-preview' } },
+    });
+    assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-planner'), 'openai-codex/gpt-5.5-preview');
+    assert.strictEqual(resolveThinkingLevelInternal(tmpDir, 'gsd-planner'), 'high');
+  });
+
+  test('partial object override can change thinking without replacing model', () => {
+    writeConfig(tmpDir, {
+      runtime: 'pi',
+      model_profile: 'quality',
+      model_profile_overrides: { pi: { opus: { thinking: 'medium' } } },
+    });
+    assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-planner'), 'openai-codex/gpt-5.5');
+    assert.strictEqual(resolveThinkingLevelInternal(tmpDir, 'gsd-planner'), 'medium');
+  });
+});
+
 // ─── Precedence chain ───────────────────────────────────────────────────────
 describe('issue #2517: precedence chain', () => {
   let tmpDir;
