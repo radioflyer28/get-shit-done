@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-21",
+  "generated": "2026-05-23",
   "families": {
     "agents": [
       "gsd-advisor-researcher",
@@ -226,6 +226,7 @@
       "planner-gap-closure.md",
       "planner-graphify-auto-update.md",
       "planner-human-verify-mode.md",
+      "planner-interface-context.md",
       "planner-mvp-mode.md",
       "planner-reviews.md",
       "planner-revision.md",
@@ -268,6 +269,7 @@
       "clusters.cjs",
       "code-review-flags.cjs",
       "command-aliases.generated.cjs",
+      "command-routing-hub.cjs",
       "commands.cjs",
       "config-schema.cjs",
       "config.cjs",
@@ -324,6 +326,7 @@
       "template.cjs",
       "uat.cjs",
       "validate-command-router.cjs",
+      "validate.generated.cjs",
       "verify-command-router.cjs",
       "verify.cjs",
       "workstream-inventory-builder.generated.cjs",

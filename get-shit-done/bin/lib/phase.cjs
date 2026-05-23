@@ -444,12 +444,44 @@ function cmdPhasePlanIndex(cwd, phase, raw) {
 
   // ── Pass 2: topological level assignment via depends_on DAG ──────────────
 
+  // Guard: detect case-insensitive key collisions before building dependency
+  // maps. Two plan IDs that differ only by case would silently overwrite each
+  // other in planMap, routing depends_on edges to whichever plan survived last.
+  // This is a configuration error — fail fast with the conflicting IDs. (#3785)
+  //
+  // This guard catches case-fold collisions on full plan IDs.
+  // Shared-numeric-prefix collisions (e.g. '20-01-Auth' and '20-01' both
+  // producing canonical '20-01') are resolved by first-write-wins ordering
+  // from sorted planFiles — not explicitly guarded here.
+  // seenLower is intentionally separate from planMap — it exists only to detect
+  // collisions before planMap is built, so the error fires before any Map
+  // entry silently overwrites another.
+  const seenLower = new Map(); // lowercase key → original id
+  for (const p of rawPlans) {
+    // ASCII plan IDs only — toLowerCase() is correct and locale-safe here.
+    const lower = p.id.toLowerCase();
+    const existing = seenLower.get(lower);
+    if (existing !== undefined) {
+      error(`depends_on index collision in phase ${normalized}: plan IDs '${existing}' and '${p.id}' are identical when case-folded. Rename one file to avoid ambiguous dependency resolution.`);
+      return;
+    }
+    seenLower.set(lower, p.id);
+  }
+
   // Build a map from plan ID → raw plan for fast lookup.
   // Deps that reference plans outside this phase are treated as external and ignored.
-  const planMap = new Map(rawPlans.map(p => [p.id, p]));
+  // Keys are lowercased so that depends_on refs with different casing still
+  // resolve to the correct plan (#3785: case-insensitive identifier resolution).
+  const planMap = new Map(rawPlans.map(p => [p.id.toLowerCase(), p]));
   // Secondary index: canonical prefix → full plan ID, so depends_on: ['03-01'] resolves
   // to '03-01-auth-hardening-PLAN.md'-derived ID '03-01-auth-hardening' (k015).
-  const canonicalToId = new Map(rawPlans.map(p => [extractCanonicalPlanId(p.id), p.id]));
+  // Keyed lowercase for the same case-insensitive reason (#3785).
+  const canonicalToId = new Map(rawPlans.map(p => [extractCanonicalPlanId(p.id).toLowerCase(), p.id]));
+
+  // KNOWN GAP: CJS resolver has only two tiers (planMap + canonicalToId);
+  // the SDK has an additional shortFormToId for same-phase short-form refs
+  // like '01' or '01A'. Adding the third tier here is tracked as a parity
+  // gap and is out of scope for #3785 / PR #3798.
 
   // Kahn's algorithm — compute in-degree and adjacency for in-phase deps only.
   const level = new Map();
@@ -461,7 +493,9 @@ function cmdPhasePlanIndex(cwd, phase, raw) {
     if (!adj.has(p.id)) adj.set(p.id, []);
     for (const dep of p.dependsOn) {
       // Accept both full-stem ('03-01-auth-hardening') and canonical-prefix ('03-01') forms.
-      const resolvedDep = planMap.has(dep) ? dep : canonicalToId.get(dep);
+      // All lookups are lowercased so mixed-case depends_on refs resolve correctly (#3785).
+      const depLower = dep.toLowerCase();
+      const resolvedDep = planMap.has(depLower) ? planMap.get(depLower).id : canonicalToId.get(depLower);
       if (!resolvedDep) continue; // external dep — ignore
       if (!adj.has(resolvedDep)) adj.set(resolvedDep, []);
       adj.get(resolvedDep).push(p.id);
@@ -537,7 +571,13 @@ function cmdPhasePlanIndex(cwd, phase, raw) {
     const plan = {
       id: raw.id,
       wave: effectiveWave,
-      depends_on: raw.dependsOn,
+      // Resolve each user-typed dep to its canonical plan ID (preserving on-disk casing)
+      // so the output never reflects the user's case typo. Unresolved deps (external
+      // phase refs) are kept as-is since planMap only contains plans in this phase.
+      depends_on: raw.dependsOn.map(dep => {
+        const lower = String(dep).toLowerCase();
+        return planMap.has(lower) ? planMap.get(lower).id : dep;
+      }),
       autonomous: raw.autonomous,
       objective: raw.objective,
       files_modified: raw.filesModified,
@@ -607,7 +647,7 @@ function cmdPhaseAdd(cwd, description, raw, customId) {
       let m;
       while ((m = phasePattern.exec(content)) !== null) {
         const num = parseInt(m[1], 10);
-        if (num >= 999) continue; // backlog phases use 999.x numbering
+        if (num === 999) continue; // backlog phases use 999.x numbering
         if (num > maxPhase) maxPhase = num;
       }
 
@@ -621,7 +661,7 @@ function cmdPhaseAdd(cwd, description, raw, customId) {
           const match = entry.match(dirNumPattern);
           if (!match) continue;
           const num = parseInt(match[1], 10);
-          if (num >= 999) continue; // skip backlog orphans
+          if (num === 999) continue; // skip backlog orphans
           if (num > maxPhase) maxPhase = num;
         }
       }
@@ -685,7 +725,7 @@ function cmdPhaseAddBatch(cwd, descriptions, raw) {
       let m;
       while ((m = phasePattern.exec(content)) !== null) {
         const num = parseInt(m[1], 10);
-        if (num >= 999) continue;
+        if (num === 999) continue;
         if (num > maxPhase) maxPhase = num;
       }
       const phasesOnDisk = path.join(planningDir(cwd), 'phases');
@@ -695,7 +735,7 @@ function cmdPhaseAddBatch(cwd, descriptions, raw) {
           const match = entry.match(dirNumPattern);
           if (!match) continue;
           const num = parseInt(match[1], 10);
-          if (num >= 999) continue;
+          if (num === 999) continue;
           if (num > maxPhase) maxPhase = num;
         }
       }
@@ -759,8 +799,32 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
     const normalizedAfter = normalizePhaseName(afterPhase);
     const afterPhaseEscaped = phaseMarkdownRegexSource(normalizedAfter);
     const targetPattern = new RegExp(`#{2,4}\\s*Phase\\s+${afterPhaseEscaped}:`, 'i');
-    if (!targetPattern.test(content)) {
-      const checklistPattern = new RegExp(`-\\s*\\[[ x]\\]\\s*\\*\\*Phase\\s+${afterPhaseEscaped}:`, 'i');
+    const headingMatch = targetPattern.test(content);
+
+    // #3815: also recognise the checked-bullet phase format used by projects
+    // that list phases as `- [ ] **Phase N: name**` or `- [ ] Phase N: name`
+    // (both bold and plain variants).  Mirrors phaseRemove / phaseComplete.
+    //
+    // Bullet-style only activates when there are NO heading-style phases in the
+    // milestone content.  A bullet entry in a hybrid (headings + bullets) ROADMAP
+    // means the detail section is missing — that is the #3098 case and must keep
+    // producing the "missing a detail section" error.
+    const bulletPattern = new RegExp(
+      `-\\s*\\[[ x]\\]\\s*(?:\\*\\*)?Phase\\s+${afterPhaseEscaped}[:\\s]`,
+      'i',
+    );
+    const anyHeadingPattern = /#{2,4}\s*Phase\s+\d/i;
+    const roadmapHasHeadingPhases = anyHeadingPattern.test(content);
+    const isBulletStyle = !headingMatch && bulletPattern.test(content) && !roadmapHasHeadingPhases;
+
+    if (!headingMatch && !isBulletStyle) {
+      // Bug #3098 parity: when the ROADMAP uses heading-style phases and only
+      // the summary checklist exists for this phase (no `### Phase N:` detail
+      // section), point the user at the missing detail section.
+      const checklistPattern = new RegExp(
+        `-\\s*\\[[ x]\\]\\s*(?:\\*\\*)?Phase\\s+${afterPhaseEscaped}[:\\s]`,
+        'i',
+      );
       if (checklistPattern.test(content)) {
         error(`Phase ${afterPhase} exists in roadmap summary but is missing a detail section (### Phase ${afterPhase}: ...).`);
       }
@@ -806,28 +870,72 @@ function cmdPhaseInsert(cwd, afterPhase, description, raw) {
     platformEnsureDir(dirPath);
     platformWriteSync(path.join(dirPath, '.gitkeep'), '');
 
-    // Build phase entry
-    const phaseEntry = `\n### Phase ${_decimalPhase}: ${description} (INSERTED)\n\n**Goal:** [Urgent work - to be planned]\n**Requirements**: TBD\n**Depends on:** Phase ${afterPhase}\n**Plans:** 0 plans\n\nPlans:\n- [ ] TBD (run ${formatGsdSlash('plan-phase', resolveRuntime(cwd))} ${_decimalPhase} to break down)\n`;
+    let updatedContent;
 
-    // Insert after the target phase section
-    const headerPattern = new RegExp(`(#{2,4}\\s*Phase\\s+${afterPhaseEscaped}:[^\\n]*\\n)`, 'i');
-    const headerMatch = rawContent.match(headerPattern);
-    if (!headerMatch) {
-      error(`Could not find Phase ${afterPhase} header`);
-    }
+    if (isBulletStyle) {
+      // #3815: Insert in checked-bullet format, mirroring the style of the
+      // surrounding entries.  Detect whether the matched bullet uses bold
+      // (`**Phase N: …**`) to preserve file-internal format consistency.
+      const boldBulletPattern = new RegExp(
+        `-\\s*\\[[ x]\\]\\s*\\*\\*Phase\\s+${afterPhaseEscaped}:`,
+        'i',
+      );
+      const useBold = boldBulletPattern.test(content);
+      const phaseLabel = useBold
+        ? `**Phase ${_decimalPhase}: ${description}**`
+        : `Phase ${_decimalPhase}: ${description}`;
+      const bulletEntry = `\n- [ ] ${phaseLabel}`;
 
-    const headerIdx = rawContent.indexOf(headerMatch[0]);
-    const afterHeader = rawContent.slice(headerIdx + headerMatch[0].length);
-    const nextPhaseMatch = afterHeader.match(/\n#{2,4}\s+Phase\s+\d/i);
+      // Locate the target bullet line in the raw content
+      const targetBulletPattern = new RegExp(
+        `(-\\s*\\[[ x]\\]\\s*(?:\\*\\*)?Phase\\s+${afterPhaseEscaped}[:\\s][^\\n]*)`,
+        'i',
+      );
+      const bulletMatchResult = rawContent.match(targetBulletPattern);
+      if (!bulletMatchResult) {
+        error(`Could not find Phase ${afterPhase} bullet line`);
+      }
 
-    let insertIdx;
-    if (nextPhaseMatch) {
-      insertIdx = headerIdx + headerMatch[0].length + nextPhaseMatch.index;
+      const bulletLineEnd = rawContent.indexOf(bulletMatchResult[0]) + bulletMatchResult[0].length;
+      const afterBullet = rawContent.slice(bulletLineEnd);
+      const nextBulletMatch = afterBullet.match(/\n-\s*\[[ x]\]\s*(?:\*\*)?Phase\s+\d/i);
+
+      let insertIdx;
+      if (nextBulletMatch) {
+        insertIdx = bulletLineEnd + nextBulletMatch.index;
+      } else {
+        insertIdx = bulletLineEnd;
+      }
+
+      updatedContent = rawContent.slice(0, insertIdx) + bulletEntry + rawContent.slice(insertIdx);
     } else {
-      insertIdx = rawContent.length;
+      // Heading-style insert (original path)
+      // Build phase entry
+      const phaseEntry = `\n### Phase ${_decimalPhase}: ${description} (INSERTED)\n\n**Goal:** [Urgent work - to be planned]\n**Requirements**: TBD\n**Depends on:** Phase ${afterPhase}\n**Plans:** 0 plans\n\nPlans:\n- [ ] TBD (run ${formatGsdSlash('plan-phase', resolveRuntime(cwd))} ${_decimalPhase} to break down)\n`;
+
+      // Insert after the target phase section
+      const headerPattern = new RegExp(`(#{2,4}\\s*Phase\\s+${afterPhaseEscaped}:[^\\n]*\\n)`, 'i');
+      const headerMatch = rawContent.match(headerPattern);
+      if (!headerMatch) {
+        error(`Could not find Phase ${afterPhase} header`);
+      }
+
+      const headerIdx = rawContent.indexOf(headerMatch[0]);
+      const afterHeader = rawContent.slice(headerIdx + headerMatch[0].length);
+      // #3691: `\d` → `\d[\d.]*` so decimal phase headings (e.g. `### Phase 02.3:`) are
+      // recognised as section boundaries.
+      const nextPhaseMatch = afterHeader.match(/\n#{2,4}\s+Phase\s+\d[\d.]*/i);
+
+      let insertIdx;
+      if (nextPhaseMatch) {
+        insertIdx = headerIdx + headerMatch[0].length + nextPhaseMatch.index;
+      } else {
+        insertIdx = rawContent.length;
+      }
+
+      updatedContent = rawContent.slice(0, insertIdx) + phaseEntry + rawContent.slice(insertIdx);
     }
 
-    const updatedContent = rawContent.slice(0, insertIdx) + phaseEntry + rawContent.slice(insertIdx);
     platformWriteSync(roadmapPath, updatedContent);
     return { decimalPhase: _decimalPhase, dirName: _dirName };
   });

@@ -1,3 +1,33 @@
+> # ⚠️ This is the active fork
+>
+> 📢 **Read the announcement: [why the fork, what changed, what's next →](https://github.com/gsd-redux/get-shit-done-redux/discussions/109)**
+>
+> The original repo at [gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done) appears compromised or abandoned. The maintainer (TÂCHES) has not been reachable since **2026-04-01**. TÂCHES social accounts appear deleted, and a **`$GSD` token associated with the project has been linked publicly to a rug-pull**.
+>
+> I have **no inside information** beyond what is publicly visible. I am stating absence-of-information deliberately — absence of news is not the same as evidence.
+>
+> ### What I can confirm
+>
+> - No contact with the original maintainer since 2026-04-01.
+> - TÂCHES social accounts appear deleted or unreachable.
+> - The `$GSD` token has been linked publicly to a rug-pull.
+> - The repo at `gsd-build/get-shit-done` continues to exist but I cannot vouch for any changes pushed there from this point forward.
+>
+> ### What changed
+>
+> | | Before | After |
+> |---|---|---|
+> | GitHub | `gsd-build/get-shit-done` | `open-gsd/get-shit-done-redux` |
+> | npm (main) | `get-shit-done-cc` → `get-shit-done-redux` | `@opengsd/get-shit-done-redux` |
+> | npm (sdk) | `@gsd-build/sdk` → `@gsd-redux/sdk` | `@opengsd/gsd-sdk` |
+> | Issue numbers | per source | renumbered; original is in body as `[from gsd-build/get-shit-done#N]` |
+>
+> If you can reach the original maintainer, please open an issue here and CC them. If you have technical evidence that materially changes the picture above, please share it in an issue.
+>
+> — trek-e, fork maintainer
+>
+> ---
+
 <div align="center">
 
 # GET SHIT DONE
@@ -8,19 +38,17 @@
 
 **Solves context rot — the quality degradation that happens as your AI fills its context window.**
 
-[![npm version](https://img.shields.io/npm/v/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
-[![npm downloads](https://img.shields.io/npm/dm/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
-[![Tests](https://img.shields.io/github/actions/workflow/status/gsd-build/get-shit-done/test.yml?branch=main&style=for-the-badge&logo=github&label=Tests)](https://github.com/gsd-build/get-shit-done/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/%40opengsd%2Fget-shit-done-redux?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/@opengsd/get-shit-done-redux)
+[![npm downloads](https://img.shields.io/npm/dm/%40opengsd%2Fget-shit-done-redux?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/@opengsd/get-shit-done-redux)
+[![Tests](https://img.shields.io/github/actions/workflow/status/open-gsd/get-shit-done-redux/test.yml?branch=main&style=for-the-badge&logo=github&label=Tests)](https://github.com/open-gsd/get-shit-done-redux/actions/workflows/test.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/mYgfVNfA2r)
-[![X (Twitter)](https://img.shields.io/badge/X-@gsd__foundation-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/gsd_foundation)
-[![$GSD Token](https://img.shields.io/badge/$GSD-Dexscreener-1C1C1C?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIgZmlsbD0iIzAwRkYwMCIvPjwvc3ZnPg==&logoColor=00FF00)](https://dexscreener.com/solana/dwudwjvan7bzkw9zwlbyv6kspdlvhwzrqy6ebk8xzxkv)
-[![GitHub stars](https://img.shields.io/github/stars/gsd-build/get-shit-done?style=for-the-badge&logo=github&color=181717)](https://github.com/gsd-build/get-shit-done)
+[![GitHub stars](https://img.shields.io/github/stars/open-gsd/get-shit-done-redux?style=for-the-badge&logo=github&color=181717)](https://github.com/open-gsd/get-shit-done-redux)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
 <br>
 
 ```bash
-npx get-shit-done-cc@latest
+npx @opengsd/get-shit-done-redux@latest
 ```
 
 **Works on Mac, Windows, and Linux.**
@@ -131,7 +159,7 @@ Loop discuss → plan → execute → verify → ship until the milestone is don
 ## Getting Started
 
 ```bash
-npx get-shit-done-cc@latest
+npx @opengsd/get-shit-done-redux@latest
 ```
 
 The installer prompts for your runtime (Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Pi, Copilot, Cursor, Windsurf, and more) and whether to install globally or locally.
@@ -154,6 +182,14 @@ GSD is built for frictionless automation. Skip-permissions is how it's intended 
 Install only the skills you need with `--profile=core` (six core-loop skills), `--profile=standard` (core + phase management), or the default full install. Profiles compose: `--profile=core,audit`. `--minimal` is an alias for `--profile=core`. See **[docs/USER-GUIDE.md](docs/USER-GUIDE.md)** for the full walkthrough, non-interactive install flags for all supported runtimes, and permissions configuration. See [ADR-0011](docs/adr/0011-skill-surface-budget-module.md) for the profile model and runtime surface control.
 
 Current release highlights are in [docs/RELEASE-v1.42.1.md](docs/RELEASE-v1.42.1.md): package legitimacy checks, safer installer migrations, runtime surface control, custom ship PR sections, reviewer defaults, fallow structural review, and quota-aware execution recovery.
+
+### Cross-runtime compatibility: installer required
+
+The `agents/` and `commands/` directories in this repository are Claude Code-format source files. The installer (`npx @opengsd/get-shit-done-redux@latest`) transforms them per target runtime — stripping or converting frontmatter fields that Claude Code uses but other runtimes reject. For example, OpenCode requires `color` as a hex or semantic value from a fixed set, and does not accept a `tools:` frontmatter field; the installer function `convertClaudeToOpencodeFrontmatter` (`bin/install.js`) handles this automatically.
+
+**Manually copying files** from `agents/` or `commands/` directly into a non-Claude-Code runtime config directory (e.g., `~/.config/opencode/agents`) skips the conversion step and will produce schema validation errors in that runtime.
+
+If you are on a system without Node.js or npm (Windows + OpenCode is the most common case), see **[docs/USER-GUIDE.md — Manual install / no-Node.js setup](docs/USER-GUIDE.md#manual-install--no-nodejs-setup)** for the per-runtime conversion summary and alternative install paths.
 
 ---
 
@@ -235,12 +271,12 @@ For the full configuration reference — all settings, git branching strategies,
 
 **Something broken?** Re-run the installer — it's idempotent:
 ```bash
-npx get-shit-done-cc@latest
+npx @opengsd/get-shit-done-redux@latest
 ```
 
 **Containers or Docker?** Set `CLAUDE_CONFIG_DIR` before installing to avoid tilde-expansion issues:
 ```bash
-CLAUDE_CONFIG_DIR=/home/youruser/.claude npx get-shit-done-cc --global
+CLAUDE_CONFIG_DIR=/home/youruser/.claude npx @opengsd/get-shit-done-redux --global
 ```
 
 Full troubleshooting and uninstall instructions in **[docs/USER-GUIDE.md](docs/USER-GUIDE.md#troubleshooting)**.
@@ -258,11 +294,11 @@ Full troubleshooting and uninstall instructions in **[docs/USER-GUIDE.md](docs/U
 
 ## Star History
 
-<a href="https://star-history.com/#gsd-build/get-shit-done&Date">
+<a href="https://star-history.com/#open-gsd/get-shit-done-redux&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=gsd-build/get-shit-done&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=gsd-build/get-shit-done&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=gsd-build/get-shit-done&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=open-gsd/get-shit-done-redux&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=open-gsd/get-shit-done-redux&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=open-gsd/get-shit-done-redux&type=Date" />
  </picture>
 </a>
 
