@@ -11367,13 +11367,17 @@ function trySelfLinkGsdSdk(shimSrc) {
  * shim there"), which left `--sdk --global` installs without a callable
  * `gsd-sdk` on PATH despite the installer reporting success.
  *
- * Strategy: discover npm's global bin directory via `npm prefix -g` (which on
- * Windows IS the bin dir, no `bin/` suffix — see line 8721) and write the same
- * three-file shim set npm itself emits: `gsd-sdk.cmd` (cmd.exe), `gsd-sdk.ps1`
- * (PowerShell), and a Bash wrapper named `gsd-sdk` (for Cygwin/MSYS/Git-Bash).
- * Each shim invokes `node "<absolute path to bin/gsd-sdk.js>"` with passed
- * args so the shim location is decoupled from the SDK location — same logical
- * structure as the POSIX wrapper-via-require() fallback above.
+ * Strategy: prefer an existing user-owned PATH directory (for example
+ * `%USERPROFILE%\.local\bin`) before falling back to npm's global bin
+ * directory from `npm prefix -g` (which on Windows IS the bin dir, no `bin/`
+ * suffix). This handles Codex/sandboxed Windows environments where npm's
+ * global bin is present but not accessible to the runtime that executes GSD
+ * skills. Write the same three-file shim set npm itself emits: `gsd-sdk.cmd`
+ * (cmd.exe), `gsd-sdk.ps1` (PowerShell), and a Bash wrapper named `gsd-sdk`
+ * (for Cygwin/MSYS/Git-Bash). Each shim invokes
+ * `node "<absolute path to bin/gsd-sdk.js>"` with passed args so the shim
+ * location is decoupled from the SDK location — same logical structure as the
+ * POSIX wrapper-via-require() fallback above.
  *
  * Returns the .cmd file path on success (the primary handle the installer's
  * onPath check looks for), null otherwise.
@@ -11387,6 +11391,43 @@ function trySelfLinkGsdSdk(shimSrc) {
  */
 function buildWindowsShimTriple(shimSrc) {
   return buildWindowsShimTripleFromProjection(shimSrc);
+}
+
+function getWindowsGsdSdkShimCandidateDirs(npmPrefix) {
+  const path = require('path');
+  const os = require('os');
+  const home = os.homedir();
+  const tmp = os.tmpdir();
+  const candidates = [];
+
+  const add = (dir) => {
+    if (!dir) return;
+    const resolved = path.resolve(dir);
+    if (!candidates.some((candidate) => candidate.toLowerCase() === resolved.toLowerCase())) {
+      candidates.push(resolved);
+    }
+  };
+
+  const allowedPrefixes = [];
+  if (home) allowedPrefixes.push(path.resolve(home).toLowerCase() + path.sep.toLowerCase());
+  if (tmp) allowedPrefixes.push(path.resolve(tmp).toLowerCase() + path.sep.toLowerCase());
+
+  if (allowedPrefixes.length > 0) {
+    for (const seg of (process.env.PATH || '').split(path.delimiter)) {
+      if (!seg) continue;
+      let resolved;
+      try {
+        resolved = path.resolve(seg);
+      } catch {
+        continue;
+      }
+      const normalized = resolved.toLowerCase();
+      if (allowedPrefixes.some((prefix) => normalized.startsWith(prefix))) add(resolved);
+    }
+  }
+
+  add(npmPrefix);
+  return candidates;
 }
 
 /**
@@ -11429,48 +11470,51 @@ function trySelfLinkGsdSdkWindows(shimSrc) {
       })
       .trim();
   } catch {
-    return null;
-  }
-  if (!npmPrefix || !fs.existsSync(npmPrefix)) return null;
-
-  // Verify writability before producing partial shim sets.
-  try {
-    fs.mkdirSync(npmPrefix, { recursive: true });
-    const probe = path.join(npmPrefix, '.gsd-sdk-write-probe');
-    fs.writeFileSync(probe, '');
-    fs.unlinkSync(probe);
-  } catch {
-    return null;
+    npmPrefix = null;
   }
 
   const triple = buildWindowsShimTriple(shimSrc);
-  const targets = {
-    cmd: path.join(npmPrefix, triple.fileNames.cmd),
-    ps1: path.join(npmPrefix, triple.fileNames.ps1),
-    sh: path.join(npmPrefix, triple.fileNames.sh),
-  };
 
-  try {
-    // Replace any existing shims — they may be stale (prior install of an
-    // older version pointing at a now-absent shim path).
-    for (const target of Object.values(targets)) {
-      try { fs.unlinkSync(target); } catch {}
+  for (const dir of getWindowsGsdSdkShimCandidateDirs(npmPrefix)) {
+    // Verify writability before producing partial shim sets.
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      const probe = path.join(dir, '.gsd-sdk-write-probe');
+      fs.writeFileSync(probe, '');
+      fs.unlinkSync(probe);
+    } catch {
+      continue;
     }
-    fs.writeFileSync(targets.cmd, triple.render.cmd());
-    fs.writeFileSync(targets.ps1, triple.render.ps1());
-    fs.writeFileSync(targets.sh, triple.render.sh());
-    // chmod is a no-op on Windows-native node but harmless; sets exec bit on
-    // WSL-mounted filesystems where Bash users live.
-    try { fs.chmodSync(targets.sh, 0o755); } catch {}
-    return targets.cmd;
-  } catch {
-    // Partial-write on permission flap — best-effort cleanup so the next run
-    // starts from a clean slate.
-    for (const target of Object.values(targets)) {
-      try { fs.unlinkSync(target); } catch {}
+
+    const targets = {
+      cmd: path.join(dir, triple.fileNames.cmd),
+      ps1: path.join(dir, triple.fileNames.ps1),
+      sh: path.join(dir, triple.fileNames.sh),
+    };
+
+    try {
+      // Replace any existing shims — they may be stale (prior install of an
+      // older version pointing at a now-absent shim path).
+      for (const target of Object.values(targets)) {
+        try { fs.unlinkSync(target); } catch {}
+      }
+      fs.writeFileSync(targets.cmd, triple.render.cmd());
+      fs.writeFileSync(targets.ps1, triple.render.ps1());
+      fs.writeFileSync(targets.sh, triple.render.sh());
+      // chmod is a no-op on Windows-native node but harmless; sets exec bit on
+      // WSL-mounted filesystems where Bash users live.
+      try { fs.chmodSync(targets.sh, 0o755); } catch {}
+      return targets.cmd;
+    } catch {
+      // Partial-write on permission flap — best-effort cleanup so the next run
+      // starts from a clean slate.
+      for (const target of Object.values(targets)) {
+        try { fs.unlinkSync(target); } catch {}
+      }
     }
-    return null;
   }
+
+  return null;
 }
 
 /**
@@ -11694,6 +11738,7 @@ module.exports = {
     trySelfLinkGsdSdk,
     trySelfLinkGsdSdkWindows,
     buildWindowsShimTriple,
+    getWindowsGsdSdkShimCandidateDirs,
     formatSdkPathDiagnostic,
     filterNpxFromPath,
     isLegacyGsdSdkShim,

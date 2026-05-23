@@ -105,10 +105,9 @@ const INTERNAL_COMPONENT_SLUGS = new Set([
   // a real command token.
   'init-',
 
-  // gsd-build — GitHub organization name: "github.com/open-gsd/get-shit-done-redux".
-  // Every occurrence of "/gsd-build" in docs is the path component of a GitHub URL
-  // (e.g., "[#2792](https://github.com/open-gsd/get-shit-done-redux/issues/2792)").
-  // The regex captures "/gsd-build" from the URL path. Not a slash command.
+  // gsd-build — historical GitHub organization name in provenance links and
+  // GitHub URL path components. The regex captures "/gsd-build" from URL
+  // paths in docs, not from a slash command.
   'build',
 
   // ~/gsd-workspaces/ — filesystem directory path used by /gsd-workspace.
@@ -117,6 +116,10 @@ const INTERNAL_COMPONENT_SLUGS = new Set([
   // The regex captures "/gsd-workspaces" from the path component. The LIVE slash
   // command is "/gsd-workspace" (singular) — not "/gsd-workspaces" (plural).
   'workspaces',
+
+  // gsd-hooks — documentation path/category token for hook internals. Not a
+  // registered slash command.
+  'hooks',
 
   // Portuguese translation of "command" — pt-BR/ARCHITECTURE.md uses "/gsd-comando"
   // as the localized equivalent of the "/gsd-command-name" English placeholder

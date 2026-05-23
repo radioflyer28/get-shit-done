@@ -77,10 +77,13 @@ describe('Bug #2962: buildWindowsShimTriple — pure IR builder', () => {
 describe('Bug #2962: trySelfLinkGsdSdkWindows — fs/spawn driver', () => {
   let tmpDir;
   let origExecSync;
+  let origPath;
 
   before(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gsd-2962-'));
     origExecSync = cp.execSync;
+    origPath = process.env.PATH;
+    process.env.PATH = [tmpDir, origPath].filter(Boolean).join(path.delimiter);
     cp.execSync = (cmd) => {
       if (typeof cmd === 'string' && cmd.trim() === 'npm prefix -g') {
         return tmpDir + '\n';
@@ -91,6 +94,7 @@ describe('Bug #2962: trySelfLinkGsdSdkWindows — fs/spawn driver', () => {
 
   after(() => {
     cp.execSync = origExecSync;
+    process.env.PATH = origPath;
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -137,14 +141,30 @@ describe('Bug #2962: trySelfLinkGsdSdkWindows — fs/spawn driver', () => {
     assert.ok(afterMtime > beforeMtime, `mtime must advance: before=${beforeMtime} after=${afterMtime}`);
   });
 
-  test('returns null when npm prefix -g fails', () => {
+  test('falls back to a user-owned PATH directory when npm prefix -g fails', () => {
     const restore = cp.execSync;
+    const restorePath = process.env.PATH;
     cp.execSync = () => { throw new Error('npm not on PATH'); };
+    try {
+      const result = installModule.trySelfLinkGsdSdkWindows(path.join(ROOT, 'bin', 'gsd-sdk.js'));
+      assert.equal(result, path.join(tmpDir, 'gsd-sdk.cmd'));
+    } finally {
+      cp.execSync = restore;
+      process.env.PATH = restorePath;
+    }
+  });
+
+  test('returns null when npm prefix fails and no user-owned PATH dir is writable', () => {
+    const restore = cp.execSync;
+    const restorePath = process.env.PATH;
+    cp.execSync = () => { throw new Error('npm not on PATH'); };
+    process.env.PATH = path.parse(os.homedir()).root;
     try {
       const result = installModule.trySelfLinkGsdSdkWindows(path.join(ROOT, 'bin', 'gsd-sdk.js'));
       assert.equal(result, null);
     } finally {
       cp.execSync = restore;
+      process.env.PATH = restorePath;
     }
   });
 });
